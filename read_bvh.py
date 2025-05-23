@@ -1,8 +1,6 @@
 import bvh
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-import os
-from tqdm import tqdm
 from visualize_motion import visualize_motion
 
 POSITION_CHANNELS = ['Xposition', 'Yposition', 'Zposition']
@@ -88,16 +86,3 @@ class BvhMocap:
                          start_frame_idx, end_frame_idx, frame_rate)
 
 
-def main():
-    motion_data = {}
-    bvh_folder = "datasets/lafan1"
-    for bvh_name in tqdm(os.listdir(bvh_folder)):
-        bvh_file_path = os.path.join(bvh_folder, bvh_name)
-        mocap_object = BvhMocap(bvh_file_path)
-        mocap_object.visualize(10, 600, 10)
-        break
-    np.savez("data.npz", **motion_data)
-
-
-if __name__ == "__main__":
-    main()
