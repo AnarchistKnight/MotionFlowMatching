@@ -75,6 +75,16 @@ class BvhMocap:
                                       self.hip_position, world_rotations, world_positions, joint_name)
         return world_rotations, world_positions
 
+    def export_array(self):
+        world_rotations, world_positions = self.export_data()
+        result = []
+        for joint_name in self.joint_names:
+            world_rot = world_rotations[joint_name][:, :, :2].reshape(-1, 6)
+            world_pos = world_positions[joint_name]
+            result.extend([world_rot, world_pos])
+        result = np.concatenate(result, axis=1)
+        return result
+
     def visualize(self, start_frame_idx=None, end_frame_idx=None, acceleration=1):
         if start_frame_idx is None:
             start_frame_idx = 0

@@ -1,0 +1,12 @@
+=============== 100STYLE ===============
+num bvh files: 1620
+total frames: 9559500
+=============== Bandai-Namco-Research-Motiondataset ===============
+num bvh files: 24616
+total frames: 3372768
+=============== lafan1 ===============
+num bvh files: 77
+total frames: 496672
+=============== sfu ===============
+num bvh files: 92
+total frames: 230504
