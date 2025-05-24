@@ -62,24 +62,26 @@ def train(config_path):
     window_len = config["window_len"]
     dataset = MotionDataset(config["data"], window_len)
     batch_size = config["train"]["batch_size"]
+    num_epochs = config["train"]["epochs"]
+    checkpoint_path = config["train"]["checkpoint"]
+    print_every = config["train"]["print_every"]
+    save_every = config["train"]["save_every"]
+    device = torch.device("cuda")
+
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=True,
                             pin_memory=True)
-    device = torch.device("cuda")
+
     model = FlowMatchingTransformer(num_frames=window_len).to(device)
-    checkpoint_path = "checkpoint.pth"
+
     if os.path.exists(checkpoint_path):
-        model_state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))  # 示例：强制加载到CPU
+        model_state_dict = torch.load(checkpoint_path, map_location=device)  # 示例：强制加载到CPU
         model.load_state_dict(model_state_dict)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["train"]["learning_rate"])
     criterion = nn.MSELoss()  # 使用MSELoss来计算速度场误差
-    num_epochs = config["train"]["epochs"]
-
-    print_every = 100
     print_count = 0
-    save_every = 10000
     num_batch = len(dataloader)
 
     for epoch in range(num_epochs):

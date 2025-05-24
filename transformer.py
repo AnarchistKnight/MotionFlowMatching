@@ -128,7 +128,7 @@ class FlowMatchingTransformer(nn.Module):
         x_t_with_pos = self.pos_encoder(x_t_embedded)  # Shape: (batch_size, num_frames, d_model)
 
         # 2. Generate time embedding
-        time_emb = self.time_embedding_module(t) # Shape: (batch_size, d_model)
+        time_emb = self.time_embedding_module(t)  # Shape: (batch_size, d_model)
 
         # 3. Integrate time embedding into the sequence
         # We add the time_emb (broadcasting it) to every frame's embedding
