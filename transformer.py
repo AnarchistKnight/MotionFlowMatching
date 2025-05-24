@@ -38,7 +38,7 @@ class MotionTransformer(nn.Module):
                  rot6d_dim: int = 6,
                  pos3d_dim: int = 3,
                  d_model: int = 256,
-                 nhead: int = 8,
+                 num_head: int = 8,
                  num_encoder_layers: int = 4,
                  dim_feedforward: int = 512,
                  dropout: float = 0.1,
@@ -65,7 +65,7 @@ class MotionTransformer(nn.Module):
         # 如果你希望直接传入 (batch_size, 1, d_model) 给 encoder，可以设 batch_first=True
         # 为了符合 PyTorch 官方示例和通常做法，我们保持 batch_first=False
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model,
-                                                   nhead=nhead,
+                                                   nhead=num_head,
                                                    dim_feedforward=dim_feedforward,
                                                    dropout=dropout,
                                                    batch_first=True) # 修改为 batch_first=True 以简化输入处理

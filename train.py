@@ -1,16 +1,13 @@
 from transformer import MotionTransformer
 import json
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 def read_json(json_path):
     with open(json_path, "r") as f:
         return json.load(f)
-
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 
 def simple_flow_matching_training_step(model, optimizer, data_batch, device):
@@ -29,7 +26,7 @@ def simple_flow_matching_training_step(model, optimizer, data_batch, device):
 
     # 将数据移动到指定设备
     full_motion_sequence = full_motion_sequence.to(device)
-    full_time_steps = full_time_steps.to(device) # 假设 full_time_steps 是从 0 到 num_frames-1 的索引
+    full_time_steps = full_time_steps.to(device)  # 假设 full_time_steps 是从 0 到 num_frames-1 的索引
 
     num_frames = full_motion_sequence.shape[0]
     total_loss = 0.0
@@ -60,7 +57,7 @@ def simple_flow_matching_training_step(model, optimizer, data_batch, device):
 
     # 反向传播和优化
     if num_frames > 1:
-        total_loss = total_loss / (num_frames - 1) # 平均每一帧的损失
+        total_loss = total_loss / (num_frames - 1)  # 平均每一帧的损失
         total_loss.backward()
         optimizer.step()
 
@@ -71,12 +68,12 @@ def generate_motion_sequence(model, start_motion_frame, start_frame_idx, num_gen
     """
     使用训练好的Flow Matching模型生成动作序列。
     """
-    model.eval() # 设置为评估模式
+    model.eval()  # 设置为评估模式
 
     # 存储生成的动作序列 (从 numpy 数组开始，方便后续处理或保存)
     generated_sequence = [start_motion_frame.squeeze(0).cpu().numpy()]
     current_motion_frame = start_motion_frame.to(device)
-    current_frame_idx = start_frame_idx.to(device) # (1, 1)
+    current_frame_idx = start_frame_idx.to(device)  # (1, 1)
 
     with torch.no_grad():
         for step in range(num_generation_steps):
@@ -90,7 +87,7 @@ def generate_motion_sequence(model, start_motion_frame, start_frame_idx, num_gen
 
             # 更新当前帧和帧索引
             current_motion_frame = next_motion_frame
-            current_frame_idx = current_frame_idx + 1 # 增加帧索引
+            current_frame_idx = current_frame_idx + 1  # 增加帧索引
 
             generated_sequence.append(current_motion_frame.squeeze(0).cpu().numpy())
 

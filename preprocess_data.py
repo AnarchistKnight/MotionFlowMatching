@@ -28,7 +28,7 @@ def main():
     if os.path.exists(data_path):
         with open(data_path, "rb") as f:
             data = pickle.load(f)
-            data = {key: data[key] for key in data.keys()}
+            data = {key: data[key].reshape(-1, 23, 9) for key in data.keys()}
             print([data[key].shape for key in data.keys()])
             print(len(data), "files already processed and cached")
     index = 0
