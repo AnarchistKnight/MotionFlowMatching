@@ -2,6 +2,7 @@ import bvh
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from visualize_motion import visualize_motion
+from utils import read_bvh
 
 POSITION_CHANNELS = ['Xposition', 'Yposition', 'Zposition']
 ROTATION_CHANNELS = ['Xrotation', 'Yrotation', 'Zrotation']
@@ -14,11 +15,6 @@ def euler_to_rot6d(euler_angles, is_degrees=True):
     rotation_matrix = r_obj.as_matrix()
     rotation_6d = rotation_matrix[:, :2]
     return rotation_6d
-
-
-def read_bvh(bvh_file):
-    with open(bvh_file, "r") as f:
-        return bvh.Bvh(f.read())
 
 
 def calculate_world_transform(joint_parent_map, joint_offsets, joint_local_rotations, hip_world_position,

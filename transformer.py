@@ -1,120 +1,155 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import math
 
 
-# TimeEmbedding
+class PositionalEncoding(nn.Module):
+    """
+    Adds sinusoidal positional encoding to the input embeddings.
+    Helps the Transformer understand the order of frames in the sequence.
+    """
+    def __init__(self, d_model: int, max_len: int = 256):
+        super().__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe.unsqueeze(0)) # Shape: (1, max_len, d_model) for broadcasting
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (torch.Tensor): Input sequence embeddings. Shape: (batch_size, seq_len, d_model)
+        Returns:
+            torch.Tensor: Input with positional embeddings added.
+        """
+        return x + self.pe[:, :x.size(1), :]
+
+
 class TimeEmbedding(nn.Module):
     """
-    一个简单的线性层来嵌入时间索引 (frame_idx)。
-    将 frame_idx 映射到 d_model 维度，以便与动作特征融合。
+    Transforms a scalar time value t into a high-dimensional embedding.
     """
-    def __init__(self, d_model: int, max_frames: int = 5000):
+    def __init__(self, d_model: int, hidden_dim: int = 256):
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(1, d_model), # 输入是 (batch_size, 1), 映射到 (batch_size, d_model)
-            nn.GELU(),
-            nn.Linear(d_model, d_model)
+            nn.Linear(1, hidden_dim), # Input is a scalar t (t.unsqueeze(1))
+            nn.ReLU(),
+            nn.Linear(hidden_dim, d_model)
         )
 
-    def forward(self, t: torch.Tensor):
+    def forward(self, t: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            t: 每一帧的索引，形状为 (batch_size, 1)。
+            t (torch.Tensor): Time scalar. Shape: (batch_size, 1) or (batch_size,)
         Returns:
-            时间嵌入向量，形状为 (batch_size, d_model)。
+            torch.Tensor: Time embedding. Shape: (batch_size, d_model)
         """
-        return self.mlp(t.float()) # 将 t 转换为浮点数输入线性层
+        if t.dim() == 1:  # Ensure t is (batch_size, 1)
+            t = t.unsqueeze(1)
+        return self.mlp(t)
 
 
-class MotionTransformer(nn.Module):
-    """
-    一个用于角色动作生成的速度场预测Transformer模型。
-    它接收一帧动作数据和对应的帧索引，输出该帧的速度场。
-    """
+# --- Main Flow Matching Transformer Model ---
+class FlowMatchingTransformer(nn.Module):
+    @classmethod
+    def from_config(cls, config):
+        return FlowMatchingTransformer(num_frames=config["num_frames"],
+                                       num_joints=config["num_joints"],
+                                       joint_dim=config["joint_dim"],
+                                       d_model=config["d_model"],
+                                       num_head=config["num_head"],
+                                       num_encoder_layers=config["num_encoder_layers"],
+                                       dim_feedforward=config["dim_feedforward"],
+                                       dropout=config["dropout"])
+
     def __init__(self,
+                 num_frames: int,
                  num_joints: int = 23,
-                 rot6d_dim: int = 6,
-                 pos3d_dim: int = 3,
-                 d_model: int = 256,
+                 joint_dim: int = 9,
+                 d_model: int = 512,
                  num_head: int = 8,
-                 num_encoder_layers: int = 4,
-                 dim_feedforward: int = 512,
-                 dropout: float = 0.1,
-                 max_frames: int = 5000):
+                 num_encoder_layers: int = 6,
+                 dim_feedforward: int = 1024,
+                 dropout: float = 0.1):
         super().__init__()
 
+        self.num_frames = num_frames
         self.num_joints = num_joints
-        self.input_feature_dim = rot6d_dim + pos3d_dim # 6 + 3 = 9
+        self.joint_dim = joint_dim
         self.d_model = d_model
 
-        # 输入编码层：将每帧的动作数据映射到d_model维度
-        # 输入形状：(batch_size, num_joints, input_feature_dim)
-        # 展平为 (batch_size, num_joints * input_feature_dim)
-        # 然后线性映射到 (batch_size, d_model)
-        self.input_projection = nn.Linear(self.num_joints * self.input_feature_dim, d_model)
+        # 1. Input embedding for flattened action data (per frame)
+        # Each frame (num_joints * joint_dim) is projected to d_model
+        self.input_projection = nn.Linear(num_joints * joint_dim, d_model)
+        self.pos_encoder = PositionalEncoding(d_model, num_frames)
 
-        # 时间嵌入层：为 frame_idx 添加编码
-        self.time_embedding = TimeEmbedding(d_model, max_frames=max_frames)
+        # 2. Time embedding module
+        self.time_embedding_module = TimeEmbedding(d_model)
 
-        # Transformer编码器
-        # 注意: TransformerEncoderLayer 默认 batch_first=False，期望输入是 (seq_len, batch_size, feature_dim)
-        # 但如果你的输入每一帧都是独立的，可以考虑 batch_first=True
-        # 在这里，由于我们处理的是单帧，seq_len=1，所以手动 unsqueeze(0) 或 squeeze(0) 调整维度。
-        # 如果你希望直接传入 (batch_size, 1, d_model) 给 encoder，可以设 batch_first=True
-        # 为了符合 PyTorch 官方示例和通常做法，我们保持 batch_first=False
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model,
-                                                   nhead=num_head,
-                                                   dim_feedforward=dim_feedforward,
-                                                   dropout=dropout,
-                                                   batch_first=True) # 修改为 batch_first=True 以简化输入处理
+        # 3. Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_head,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
+            batch_first=True  # Important: input tensors are (batch_size, seq_len, features)
+        )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
 
-        # 输出层：将Transformer的输出映射回速度场维度
-        # 速度场的维度与输入动作数据相同：num_joints * input_feature_dim
-        self.output_projection = nn.Linear(d_model, self.num_joints * self.input_feature_dim)
+        # 4. Output head for velocity prediction
+        # Projects the Transformer output (d_model) back to flattened velocity (num_joints * joint_dim)
+        self.output_projection = nn.Linear(d_model, num_joints * joint_dim)
 
-    def forward(self, x: torch.Tensor, t: torch.Tensor):
+    def forward(self, x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
+        Predicts the velocity field for a given action sequence at time t.
+
         Args:
-            x: 单帧动作数据，形状为 (batch_size, num_joints, rot6d_dim + pos3d_dim)。
-               例如：(B, J, 9)
-            t: 当前帧的索引，形状为 (batch_size, 1)。
-               每个batch样本对应一个帧索引。
+            x_t (torch.Tensor): The action sequence at time t (interpolated from x0 and x1).
+                                Shape: (batch_size, num_frames, num_joints, joint_dim)
+            t (torch.Tensor): The scalar time value for each sample in the batch.
+                              Shape: (batch_size,) or (batch_size, 1) - float between 0 and 1.
         Returns:
-            predicted_velocity_field: 预测的速度场，形状为 (batch_size, num_joints, rot6d_dim + pos3d_dim)。
+            torch.Tensor: The predicted velocity field for the entire sequence.
+                          Shape: (batch_size, num_frames, num_joints, joint_dim)
         """
-        batch_size = x.shape[0]
+        batch_size = x_t.shape[0]
 
-        # 1. 输入编码
-        # 将 (batch_size, num_joints, input_feature_dim) 展平为 (batch_size, num_joints * input_feature_dim)
-        flat_x = x.view(batch_size, -1)
-        # 线性映射到 (batch_size, d_model)
-        encoded_x = self.input_projection(flat_x) # (batch_size, d_model)
+        # 1. Prepare action sequence x_t for Transformer input
+        # Flatten num_joints and joint_dim into a single feature dimension per frame
+        x_t_flat = x_t.view(batch_size, self.num_frames, -1)  # Shape: (batch_size, num_frames, num_joints * joint_dim)
 
-        # 2. 时间嵌入
-        # 将 t (frame_idx) 映射到 (batch_size, d_model)
-        time_emb = self.time_embedding(t) # (batch_size, d_model)
+        # Project flattened features to Transformer's d_model dimension
+        x_t_embedded = self.input_projection(x_t_flat)  # Shape: (batch_size, num_frames, d_model)
 
-        # 3. 融合动作特征和时间嵌入
-        # 将两者相加，作为Transformer的输入。
-        # 如果你希望更复杂的融合方式，例如拼接后通过线性层，也可以。
-        fused_input = encoded_x + time_emb # (batch_size, d_model)
+        # Add positional encoding to capture frame order
+        x_t_with_pos = self.pos_encoder(x_t_embedded)  # Shape: (batch_size, num_frames, d_model)
 
-        # 4. Transformer编码
-        # 由于我们每一帧作为一个独立的序列元素 (seq_len=1)，
-        # 并且设置了 batch_first=True，所以输入形状是 (batch_size, seq_len, d_model)
-        fused_input = fused_input.unsqueeze(1) # 变为 (batch_size, 1, d_model)
+        # 2. Generate time embedding
+        time_emb = self.time_embedding_module(t) # Shape: (batch_size, d_model)
 
-        transformer_output = self.transformer_encoder(fused_input) # (batch_size, 1, d_model)
+        # 3. Integrate time embedding into the sequence
+        # We add the time_emb (broadcasting it) to every frame's embedding
+        # This makes the Transformer aware of the global time t for the entire sequence
+        input_to_transformer = x_t_with_pos + time_emb.unsqueeze(1)  # Shape: (batch_size, num_frames, d_model)
 
-        # 5. 输出映射
-        # 移除 seq_len 维度 (1)
-        transformer_output = transformer_output.squeeze(1) # (batch_size, d_model)
-        # 映射回速度场维度
-        predicted_velocity_field_flat = self.output_projection(transformer_output) # (batch_size, num_joints * input_feature_dim)
-        # 恢复到原始动作数据形状
-        predicted_velocity_field = predicted_velocity_field_flat.view(batch_size, self.num_joints, self.input_feature_dim)
+        # 4. Pass through Transformer Encoder
+        transformer_output = self.transformer_encoder(input_to_transformer)  # Shape: (batch_size, num_frames, d_model)
 
-        return predicted_velocity_field
+        # 5. Project Transformer output back to the velocity field dimension
+        # The output head predicts the flattened velocity for each frame
+        velocity_flat = self.output_projection(transformer_output)  # Shape: (batch_size, num_frames, num_joints * joint_dim)
+
+        # Reshape back to the original (num_frames, num_joints, joint_dim) structure
+        velocity_pred = velocity_flat.view(batch_size, self.num_frames, self.num_joints, self.joint_dim)
+
+        return velocity_pred
+
+
+def flow(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_end: torch.Tensor) -> torch.Tensor:
+    t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
+    return x_t + (t_end - t_start) * net(t=t_start + (t_end - t_start) / 2,
+                                         x_t=x_t + net(x_t=x_t, t=t_start) * (t_end - t_start) / 2)
+

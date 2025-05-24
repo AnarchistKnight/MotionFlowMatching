@@ -1,110 +1,127 @@
-from transformer import MotionTransformer
-import json
+from transformer import FlowMatchingTransformer, flow
 import torch
+from utils import read_json, read_pickle
+from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
-import torch.nn.functional as F
+import os
+from tqdm import trange
+from utils import save_pickle, read_pickle
+import numpy as np
 
 
-def read_json(json_path):
-    with open(json_path, "r") as f:
-        return json.load(f)
+class MotionDataset(Dataset):
+    def __init__(self, pickle_path, window_len):
+        self.data = read_pickle(pickle_path)
+        self.files = list(self.data.keys())
+        self.length = 0
+        self.window_len = window_len
+        self.file_indices = []
+        self.frame_indices = []
+        for file_index, file in enumerate(self.files):
+            if self.data[file].shape[0] < window_len:
+                continue
+            self.length += self.data[file].shape[0] - window_len + 1
+            for frame_index in range(0, self.data[file].shape[0] - window_len + 1, 1):
+                self.file_indices.append(file_index)
+                self.frame_indices.append(frame_index)
+        self.compute_stat()
+
+    def __len__(self):
+        return self.length
+
+    def compute_stat(self):
+        if os.path.exists("stat.pkl"):
+            stat = read_pickle("stat.pkl")
+            self.mean = stat["mean"]
+            self.std = stat["std"]
+            return
+        m1 = np.zeros([self.window_len, 23, 9])
+        m2 = np.zeros([self.window_len, 23, 9])
+        for index in trange(self.length):
+            file_index = self.file_indices[index]
+            frame_index = self.frame_indices[index]
+            file = self.files[file_index]
+            motion = self.data[file][frame_index: frame_index + self.window_len]
+            m1 += motion
+            m2 += motion ** 2
+        self.mean = m1 / self.length
+        self.std = np.sqrt(m2 / self.length - self.mean ** 2)
+        save_pickle("stat.pkl", {"mean": self.mean, "std": self.std})
+
+    def __getitem__(self, idx):
+        file_index = self.file_indices[idx]
+        frame_index = self.frame_indices[idx]
+        file = self.files[file_index]
+        motion = self.data[file][frame_index: frame_index + self.window_len]
+        motion = (motion - self.mean) / self.std
+        return torch.tensor(motion, dtype=torch.float)
 
 
-def simple_flow_matching_training_step(model, optimizer, data_batch, device):
-    """
-    一个简化的Flow Matching训练步骤示例。
-    Args:
-        model: MotionTransformer 实例
-        optimizer: PyTorch优化器
-        data_batch: 包含 motion_data (num_frames, num_joints, features) 和 time_steps (num_frames)
-        device: 训练设备 (e.g., 'cuda', 'cpu')
-    """
-    model.train()
-    optimizer.zero_grad()
-
-    full_motion_sequence, full_time_steps = data_batch
-
-    # 将数据移动到指定设备
-    full_motion_sequence = full_motion_sequence.to(device)
-    full_time_steps = full_time_steps.to(device)  # 假设 full_time_steps 是从 0 到 num_frames-1 的索引
-
-    num_frames = full_motion_sequence.shape[0]
-    total_loss = 0.0
-
-    # 为了模拟Flow Matching，我们需要一个目标速度场
-    # 一个简单的目标速度场可以是 (motion_frame_{i+1} - motion_frame_i) / delta_t
-    # 假设 delta_t = 1 (帧间隔)
-
-    # 我们只训练到倒数第二帧，因为需要下一帧来计算目标速度场
-    # 在实际Flow Matching中，你会采样时间 t 并构造 x_t
-    # 这里为了简单，我们还是基于帧间差异来计算目标速度
-    for i in range(num_frames - 1):
-        current_frame = full_motion_sequence[i].unsqueeze(0) # (1, num_joints, features)
-        next_frame = full_motion_sequence[i+1].unsqueeze(0) # (1, num_joints, features)
-
-        # 对应的帧索引
-        current_frame_idx = full_time_steps[i].unsqueeze(0).unsqueeze(1) # (1, 1)
-
-        # 预测速度场
-        predicted_velocity = model(current_frame, current_frame_idx)
-
-        # 计算目标速度场
-        target_velocity = next_frame - current_frame
-
-        # 计算损失
-        loss = F.mse_loss(predicted_velocity, target_velocity)
-        total_loss += loss
-
-    # 反向传播和优化
-    if num_frames > 1:
-        total_loss = total_loss / (num_frames - 1)  # 平均每一帧的损失
-        total_loss.backward()
-        optimizer.step()
-
-    return total_loss.item()
-
-
-def generate_motion_sequence(model, start_motion_frame, start_frame_idx, num_generation_steps, device):
-    """
-    使用训练好的Flow Matching模型生成动作序列。
-    """
-    model.eval()  # 设置为评估模式
-
-    # 存储生成的动作序列 (从 numpy 数组开始，方便后续处理或保存)
-    generated_sequence = [start_motion_frame.squeeze(0).cpu().numpy()]
-    current_motion_frame = start_motion_frame.to(device)
-    current_frame_idx = start_frame_idx.to(device)  # (1, 1)
-
-    with torch.no_grad():
-        for step in range(num_generation_steps):
-            # 预测速度场
-            predicted_velocity = model(current_motion_frame, current_frame_idx)
-
-            # 使用欧拉积分更新下一帧动作
-            # next_motion_frame = current_motion_frame + predicted_velocity * delta_t
-            # 假设 delta_t = 1 (帧间隔)
-            next_motion_frame = current_motion_frame + predicted_velocity
-
-            # 更新当前帧和帧索引
-            current_motion_frame = next_motion_frame
-            current_frame_idx = current_frame_idx + 1  # 增加帧索引
-
-            generated_sequence.append(current_motion_frame.squeeze(0).cpu().numpy())
-
-    return generated_sequence
-
-
-def main():
-    config_path = "config.json"
+def train(config_path):
     config = read_json(config_path)
-    model = MotionTransformer()
-    batch_size = 64
-    x = torch.zeros([batch_size, 23, 9])
-    t = torch.zeros([batch_size, 1])
-    y = model(x, t)
-    from IPython import embed
-    embed()
+    window_len = config["window_len"]
+    dataset = MotionDataset(config["data"], window_len)
+    batch_size = config["train"]["batch_size"]
+    dataloader = DataLoader(dataset,
+                            batch_size=batch_size,
+                            shuffle=True,
+                            pin_memory=True)
+    device = torch.device("cuda")
+    model = FlowMatchingTransformer(num_frames=window_len).to(device)
+    checkpoint_path = "checkpoint.pth"
+    if os.path.exists(checkpoint_path):
+        model_state_dict = torch.load(checkpoint_path, map_location=torch.device('cpu'))  # 示例：强制加载到CPU
+        model.load_state_dict(model_state_dict)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config["train"]["learning_rate"])
+    criterion = nn.MSELoss()  # 使用MSELoss来计算速度场误差
+    num_epochs = config["train"]["epochs"]
+
+    print_every = 100
+    print_count = 0
+    save_every = 10000
+    num_batch = len(dataloader)
+
+    for epoch in range(num_epochs):
+        model.train()  # 设置模型为训练模式
+        total_loss = 0.0
+        for batch_idx, motion in enumerate(dataloader):
+            # 将数据移动到设备
+            motion = motion.to(device)
+            noise = torch.randn_like(motion).to(device)
+            t = torch.rand(batch_size, dtype=torch.float).to(device)
+            t_view = t.view(batch_size, 1, 1, 1)
+            x_t = (1 - t_view) * noise + t_view * motion
+            dx = motion - noise
+            x_out = model(x_t, t)
+            optimizer.zero_grad()
+            loss = criterion(x_out, dx)
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            print_count += 1
+            if print_count % print_every == 0:
+                print(f"iteration: {print_count} / {num_batch}, loss: {loss.item()}")
+
+            if print_count % save_every == 0:
+                torch.save(model.state_dict(), checkpoint_path)
+
+        avg_loss = total_loss / len(dataloader)
+        print(f"Epoch {epoch + 1}/{num_epochs}, Average Loss: {avg_loss:.6f}")
+
+        # 你可以在这里添加验证/评估逻辑，以及保存模型检查点
+        if (epoch + 1) % config["train"].get("save_interval", 10) == 0:
+            # 例如保存模型
+            # torch.save(model.state_dict(), f"model_epoch_{epoch+1}.pth")
+            # print(f"Model saved at epoch {epoch+1}")
+            pass  # 占位符
+
+    print("\nTraining finished.")
+    # 可以选择保存最终模型
+    # torch.save(model.state_dict(), config["train"].get("model_save_path", "final_model.pth"))
+    # print(f"Final model saved to {config['train'].get('model_save_path', 'final_model.pth')}")
 
 
 if __name__ == "__main__":
-    main()
+    train("config.json")
