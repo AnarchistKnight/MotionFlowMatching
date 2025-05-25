@@ -1,21 +1,23 @@
 {
   "data": "data.pkl",
   "window_len": 256,
+  "window_step": 8,
   "train": {
     "batch_size": 64,
-    "learning_rate": 0.00001,
+    "learning_rate": 0.00002,
     "epochs": 1000,
     "print_every": 400,
-    "save_every": 10000,
+    "save_every": 6000,
     "checkpoint": "checkpoint.pth"
   },
   "model": {
+    "num_frames": 256,
     "num_joints": 23,
     "joint_dim": 9,
-    "d_model": 256,
+    "d_model": 512,
     "num_head": 8,
-    "num_encoder_layers": 4,
-    "dim_feedforward": 512,
+    "num_encoder_layers": 6,
+    "dim_feedforward": 1024,
     "dropout": 0.1
   }
 }

@@ -10,7 +10,7 @@ import numpy as np
 
 
 class MotionDataset(Dataset):
-    def __init__(self, pickle_path, window_len):
+    def __init__(self, pickle_path, window_len, window_step):
         self.data = read_pickle(pickle_path)
         self.files = list(self.data.keys())
         self.length = 0
@@ -20,8 +20,9 @@ class MotionDataset(Dataset):
         for file_index, file in enumerate(self.files):
             if self.data[file].shape[0] < window_len:
                 continue
-            self.length += self.data[file].shape[0] - window_len + 1
-            for frame_index in range(0, self.data[file].shape[0] - window_len + 1, 1):
+            length = (self.data[file].shape[0] - window_len) // window_step + 1
+            self.length += length
+            for frame_index in range(0, self.data[file].shape[0] - window_len + 1, window_step):
                 self.file_indices.append(file_index)
                 self.frame_indices.append(frame_index)
         self.compute_stat()
@@ -60,7 +61,8 @@ class MotionDataset(Dataset):
 def train(config_path):
     config = read_json(config_path)
     window_len = config["window_len"]
-    dataset = MotionDataset(config["data"], window_len)
+    window_step = config["window_step"]
+    dataset = MotionDataset(config["data"], window_len, window_step)
     batch_size = config["train"]["batch_size"]
     num_epochs = config["train"]["epochs"]
     checkpoint_path = config["train"]["checkpoint"]
@@ -73,10 +75,10 @@ def train(config_path):
                             shuffle=True,
                             pin_memory=True)
 
-    model = FlowMatchingTransformer(num_frames=window_len).to(device)
+    model = FlowMatchingTransformer.from_config(config["model"]).to(device)
 
     if os.path.exists(checkpoint_path):
-        model_state_dict = torch.load(checkpoint_path, map_location=device)  # 示例：强制加载到CPU
+        model_state_dict = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(model_state_dict)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["train"]["learning_rate"])
@@ -91,8 +93,8 @@ def train(config_path):
             # 将数据移动到设备
             motion = motion.to(device)
             noise = torch.randn_like(motion).to(device)
-            t = torch.rand(batch_size, dtype=torch.float).to(device)
-            t_view = t.view(batch_size, 1, 1, 1)
+            t = torch.rand(motion.shape[0], dtype=torch.float).to(device)
+            t_view = t.view(motion.shape[0], 1, 1, 1)
             x_t = (1 - t_view) * noise + t_view * motion
             dx = motion - noise
             x_out = model(x_t, t)
@@ -104,7 +106,7 @@ def train(config_path):
             total_loss += loss.item()
             print_count += 1
             if print_count % print_every == 0:
-                print(f"iteration: {print_count} / {num_batch}, loss: {loss.item()}")
+                print(f"epoch: {epoch}, iteration: {batch_idx} / {num_batch}, loss: {loss.item()}")
 
             if print_count % save_every == 0:
                 torch.save(model.state_dict(), checkpoint_path)
