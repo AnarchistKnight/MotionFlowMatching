@@ -81,14 +81,15 @@ class BvhMocap:
         result = np.concatenate(result, axis=1)
         return result
 
-    def visualize(self, start_frame_idx=None, end_frame_idx=None, acceleration=1):
+    def visualize(self, start_frame_idx=None, end_frame_idx=None):
         if start_frame_idx is None:
             start_frame_idx = 0
         if end_frame_idx is None:
             end_frame_idx = self.num_frames
-        frame_rate = int(self.frame_rate * acceleration)
         _, world_positions = self.export_data()
-        visualize_motion(self.joint_names, self.joint_parent_map, world_positions, self.num_frames,
-                         start_frame_idx, end_frame_idx, frame_rate)
+        visualize_motion(self.joint_names, self.joint_parent_map, world_positions, start_frame_idx,
+                         end_frame_idx, self.frame_rate)
 
 
+if __name__ == "__main__":
+    BvhMocap("datasets/lafan1/dance2_subject4.bvh").visualize()

@@ -140,16 +140,10 @@ class FlowMatchingTransformer(nn.Module):
 
         # 5. Project Transformer output back to the velocity field dimension
         # The output head predicts the flattened velocity for each frame
-        velocity_flat = self.output_projection(transformer_output)  # Shape: (batch_size, num_frames, num_joints * joint_dim)
+        velocity_flat = self.output_projection(transformer_output)
+        # Shape: (batch_size, num_frames, num_joints * joint_dim)
 
         # Reshape back to the original (num_frames, num_joints, joint_dim) structure
         velocity_pred = velocity_flat.view(batch_size, self.num_frames, self.num_joints, self.joint_dim)
 
         return velocity_pred
-
-
-def flow(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_end: torch.Tensor) -> torch.Tensor:
-    t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
-    return x_t + (t_end - t_start) * net(t=t_start + (t_end - t_start) / 2,
-                                         x_t=x_t + net(x_t=x_t, t=t_start) * (t_end - t_start) / 2)
-

@@ -1,23 +1,22 @@
 {
+  "dataset": "100STYLE",
   "data": "data.pkl",
-  "window_len": 256,
-  "window_step": 8,
+  "window_len": 64,
+  "window_step": 4,
   "train": {
     "batch_size": 64,
-    "learning_rate": 0.00002,
+    "learning_rate": 0.00001,
     "epochs": 1000,
-    "print_every": 400,
-    "save_every": 6000,
     "checkpoint": "checkpoint.pth"
   },
   "model": {
-    "num_frames": 256,
-    "num_joints": 23,
+    "num_frames": 64,
+    "num_joints": 22,
     "joint_dim": 9,
     "d_model": 512,
     "num_head": 8,
     "num_encoder_layers": 6,
-    "dim_feedforward": 1024,
+    "dim_feedforward": 512,
     "dropout": 0.1
   }
 }

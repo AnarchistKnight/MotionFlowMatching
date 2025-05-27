@@ -4,7 +4,7 @@ from read_bvh import BvhMocap
 from utils import read_pickle, save_pickle
 
 BVH_FOLDER = "datasets"
-DATASET_NAME = "100STYLE"
+DATASET_NAME = "lafan1"
 SAVE_EVERY = 10
 
 
@@ -27,7 +27,7 @@ def main():
     data = {}
     if os.path.exists(data_path):
         data = read_pickle(data_path)
-        data = {key: data[key].reshape(-1, 23, 9) for key in data.keys()}
+        data = {key: data[key].reshape(-1, 22, 9) for key in data.keys()}
         print([data[key].shape for key in data.keys()])
         print(len(data), "files already processed and cached")
     index = 0

@@ -1,4 +1,4 @@
-from transformer import FlowMatchingTransformer, flow
+from transformer import FlowMatchingTransformer
 import torch
 from utils import read_json, read_pickle
 from torch.utils.data import Dataset, DataLoader
@@ -7,6 +7,7 @@ import os
 from tqdm import trange
 from utils import save_pickle, read_pickle
 import numpy as np
+from tqdm.contrib import tenumerate
 
 
 class MotionDataset(Dataset):
@@ -36,8 +37,8 @@ class MotionDataset(Dataset):
             self.mean = stat["mean"]
             self.std = stat["std"]
             return
-        m1 = np.zeros([self.window_len, 23, 9])
-        m2 = np.zeros([self.window_len, 23, 9])
+        m1 = np.zeros([self.window_len, 22, 9])
+        m2 = np.zeros([self.window_len, 22, 9])
         for index in trange(self.length):
             file_index = self.file_indices[index]
             frame_index = self.frame_indices[index]
@@ -66,15 +67,8 @@ def train(config_path):
     batch_size = config["train"]["batch_size"]
     num_epochs = config["train"]["epochs"]
     checkpoint_path = config["train"]["checkpoint"]
-    print_every = config["train"]["print_every"]
-    save_every = config["train"]["save_every"]
     device = torch.device("cuda")
-
-    dataloader = DataLoader(dataset,
-                            batch_size=batch_size,
-                            shuffle=True,
-                            pin_memory=True)
-
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
     model = FlowMatchingTransformer.from_config(config["model"]).to(device)
 
     if os.path.exists(checkpoint_path):
@@ -83,14 +77,11 @@ def train(config_path):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["train"]["learning_rate"])
     criterion = nn.MSELoss()  # 使用MSELoss来计算速度场误差
-    print_count = 0
-    num_batch = len(dataloader)
 
     for epoch in range(num_epochs):
         model.train()  # 设置模型为训练模式
-        total_loss = 0.0
-        for batch_idx, motion in enumerate(dataloader):
-            # 将数据移动到设备
+        total_loss = []
+        for batch_idx, motion in tenumerate(dataloader):
             motion = motion.to(device)
             noise = torch.randn_like(motion).to(device)
             t = torch.rand(motion.shape[0], dtype=torch.float).to(device)
@@ -102,29 +93,11 @@ def train(config_path):
             loss = criterion(x_out, dx)
             loss.backward()
             optimizer.step()
+            total_loss.append(loss.item())
 
-            total_loss += loss.item()
-            print_count += 1
-            if print_count % print_every == 0:
-                print(f"epoch: {epoch}, iteration: {batch_idx} / {num_batch}, loss: {loss.item()}")
-
-            if print_count % save_every == 0:
-                torch.save(model.state_dict(), checkpoint_path)
-
-        avg_loss = total_loss / len(dataloader)
-        print(f"Epoch {epoch + 1}/{num_epochs}, Average Loss: {avg_loss:.6f}")
-
-        # 你可以在这里添加验证/评估逻辑，以及保存模型检查点
-        if (epoch + 1) % config["train"].get("save_interval", 10) == 0:
-            # 例如保存模型
-            # torch.save(model.state_dict(), f"model_epoch_{epoch+1}.pth")
-            # print(f"Model saved at epoch {epoch+1}")
-            pass  # 占位符
-
-    print("\nTraining finished.")
-    # 可以选择保存最终模型
-    # torch.save(model.state_dict(), config["train"].get("model_save_path", "final_model.pth"))
-    # print(f"Final model saved to {config['train'].get('model_save_path', 'final_model.pth')}")
+        torch.save(model.state_dict(), checkpoint_path)
+        average_loss = sum(total_loss) / len(total_loss)
+        print(f"epoch: {epoch}, loss: {average_loss}")
 
 
 if __name__ == "__main__":

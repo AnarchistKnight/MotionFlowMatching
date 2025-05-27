@@ -4,8 +4,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 
-def visualize_motion(joint_names, joint_parent_map, world_positions, num_frames, start_frame_idx, end_frame_idx,
-                     frame_rate):
+def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame_idx,
+                     end_frame_idx, frame_rate, save_path=None):
     min_pos = np.array([np.inf, np.inf, np.inf])
     max_pos = np.array([-np.inf, -np.inf, -np.inf])
 
@@ -85,4 +85,13 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, num_frames,
     # 设置 blit=True，并提供 init_func
     anim = animation.FuncAnimation(fig, update_frame, frames=animation_frames, init_func=init_func,
                                    interval=1000 / frame_rate, blit=True, repeat=False)
-    plt.show()
+    if save_path is None:
+        plt.show()
+        return
+
+    if save_path.endswith(".mp4"):
+        writer_mp4 = animation.FFMpegWriter(fps=frame_rate, metadata=dict(artist='Me'), bitrate=1800)
+        anim.save('my_animation.mp4', writer=writer_mp4, dpi=200)  # 可以调整 dpi 提高质量
+    else:
+        writer_gif = animation.PillowWriter(fps=frame_rate, metadata=dict(artist='Me'))
+        anim.save('my_animation.gif', writer=writer_gif, dpi=100)  # GIF 通常 dpi 较低，以减小文件大小
