@@ -3,6 +3,10 @@
   "data_cache_path": "data.pkl",
   "window_len": 64,
   "window_step": 1,
+  "inference" : {
+    "num_flow_step": 100,
+    "animation_save_dir": "videos"
+  },
   "train": {
     "batch_size": 64,
     "learning_rate": 0.000001,

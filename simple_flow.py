@@ -1,3 +1,5 @@
+# code copied from https://github.com/facebookresearch/flow_matching/blob/main/examples/standalone_flow_matching.ipynb
+
 import torch
 from torch import nn, Tensor
 from tqdm import trange
