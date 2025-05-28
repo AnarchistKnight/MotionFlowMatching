@@ -21,7 +21,7 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
     mid_x, mid_y, mid_z = (min_pos + max_pos) / 2
 
     # 设置统一的轴范围，并增加一些边距
-    padding = 20  # 增加一些边距
+    padding = 10  # 增加一些边距
     fig = plt.figure(figsize=(10, 8))  # 设置图窗大小
     ax = fig.add_subplot(111, projection='3d')
 
@@ -41,8 +41,8 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
         ax.set_xlim(mid_x - max_range / 2 - padding, mid_x + max_range / 2 + padding)
-        ax.set_ylim(mid_y - max_range / 2 - padding, mid_y + max_range / 2 + padding)  # 注意Y/Z轴交换
-        ax.set_zlim(mid_z - max_range / 2 - padding, mid_z + max_range / 2 + padding)  # 注意Y/Z轴交换
+        ax.set_ylim(mid_z - max_range / 2 - padding, mid_z + max_range / 2 + padding)  # 注意Y/Z轴交换
+        ax.set_zlim(mid_y - max_range / 2 - padding, mid_y + max_range / 2 + padding)  # 注意Y/Z轴交换
         ax.view_init(elev=20, azim=45)
 
         # 初始化所有骨骼线数据
@@ -50,8 +50,8 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
             parent_pos = world_positions[parent_name][start_frame_idx]
             joint_pos = world_positions[joint_name][start_frame_idx]
             line.set_data([parent_pos[0], joint_pos[0]],
-                          [parent_pos[1], joint_pos[1]])  # Y和Z轴可能需要交换
-            line.set_3d_properties([parent_pos[2], joint_pos[2]])  # Y和Z轴可能需要交换
+                          [parent_pos[2], joint_pos[2]])  # Y和Z轴可能需要交换
+            line.set_3d_properties([parent_pos[1], joint_pos[1]])  # Y和Z轴可能需要交换
 
         # 返回所有初始化的 Artist 对象
         return tuple(list(bone_lines.values()))
@@ -68,8 +68,8 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
             c_pos = world_positions[child_name][frame_abs_idx]
 
             line.set_data([p_pos[0], c_pos[0]],
-                          [p_pos[1], c_pos[1]])  # Y和Z轴可能需要交换
-            line.set_3d_properties([p_pos[2], c_pos[2]])  # Y和Z轴可能需要交换
+                          [p_pos[2], c_pos[2]])  # Y和Z轴可能需要交换
+            line.set_3d_properties([p_pos[1], c_pos[1]])  # Y和Z轴可能需要交换
 
         # --- 关键：返回所有被修改的 Artist 对象 ---
         # 返回一个元组，包含散点图、所有骨骼线和标题
@@ -83,13 +83,13 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
     animation_frames = end_frame_idx - start_frame_idx
     # 设置 blit=True，并提供 init_func
     anim = animation.FuncAnimation(fig, update_frame, frames=animation_frames, init_func=init_func,
-                                   interval=2000 / frame_rate, blit=True, repeat=False)
+                                   interval=1000 / frame_rate, blit=True, repeat=False)
     if save_path is None:
         plt.show()
         return
 
     if save_path.endswith(".mp4"):
-        writer_mp4 = animation.FFMpegWriter(fps=frame_rate, metadata=dict(artist='Me'), bitrate=1800)
+        writer_mp4 = animation.FFMpegWriter(fps=frame_rate, metadata=dict(artist='Me'), bitrate=1000)
         anim.save(save_path, writer=writer_mp4, dpi=200)  # 可以调整 dpi 提高质量
     else:
         writer_gif = animation.PillowWriter(fps=frame_rate, metadata=dict(artist='Me'))

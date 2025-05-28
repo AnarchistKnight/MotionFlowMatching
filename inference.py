@@ -82,8 +82,9 @@ def rotation6d_to_matrix(rotation6d):
     if rotation6d.shape[-1] != 6:
         raise ValueError(f"Input rotation6d must have last dimension of size 6, but got {rotation6d.shape[-1]}")
 
-    a1 = rotation6d[..., :3]  # 第一列 (x 轴)
-    a2 = rotation6d[..., 3:]  # 第二列 (y 轴)
+    rotation6d = rotation6d.reshape(-1, 3, 2)
+    a1 = rotation6d[:, :, 0]  # 第一列 (x 轴)
+    a2 = rotation6d[:, :, 1]  # 第二列 (y 轴)
     b1 = a1 / np.linalg.norm(a1, axis=-1, keepdims=True)
     b3 = np.cross(b1, a2, axis=-1)
     b3 = b3 / np.linalg.norm(b3, axis=-1, keepdims=True)
@@ -139,10 +140,11 @@ def generate(num_samples, play=False):
         stat = read_pickle("stat.pkl")
         mean = stat["mean"]
         std = stat["std"]
-        motion = mean + motion * std
+        motion[:, :, -3:] = mean[:, :, -3:] + motion[:, :, -3:] * std[:, :, -3:]
         save_path = None if play else os.path.join(video_dir, f"{sample_index}.gif")
         visualize_root_pos_joint_rot(motion, dataset, save_path)
+        # visualize_world_pos(motion, dataset, save_path)
 
 
 if __name__ == "__main__":
-    generate(10)
+    generate(10, play=True)

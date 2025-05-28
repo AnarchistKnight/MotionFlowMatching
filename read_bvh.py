@@ -1,3 +1,5 @@
+import os
+
 import bvh
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -90,7 +92,8 @@ class BvhMocap:
             local_pos = local_positions[joint_name]
             world_rot = world_rotations[joint_name][:, :, :2].reshape(-1, 6)
             world_pos = world_positions[joint_name]
-            result.extend([local_rot, local_pos, world_rot, world_pos])
+            # result.extend([local_rot, local_pos, world_rot, world_pos])
+            result.extend([local_rot, world_pos])
         result = np.concatenate(result, axis=1)
         return result
 
@@ -101,12 +104,14 @@ class BvhMocap:
             end_frame_idx = self.num_frames
         _, _, world_positions = self.export_data()
         visualize_motion(self.joint_names, self.joint_parent_map, world_positions, start_frame_idx,
-                         end_frame_idx, self.frame_rate)
+                         end_frame_idx, self.frame_rate * 3)
 
 
-if __name__ == "__main__":
-    bvh_file = "datasets/lafan1/dance1_subject2.bvh"
-    bvh_obj = BvhMocap(bvh_file)
-    offsets = bvh_obj.joint_offsets
-    offsets = {key: value.tolist() for key, value in offsets.items()}
-    print(offsets)
+# if __name__ == "__main__":
+#     bvh_dir = "datasets/lafan1"
+#     for bvh_name in os.listdir(bvh_dir):
+#         if not bvh_name.endswith(".bvh"):
+#             continue
+#         bvh_file = os.path.join(bvh_dir, bvh_name)
+#         bvh_obj = BvhMocap(bvh_file)
+#         bvh_obj.visualize()

@@ -59,7 +59,7 @@ class MotionDataset(Dataset):
         frame_index = self.frame_indices[idx]
         file = self.files[file_index]
         motion = self.data[file][frame_index: frame_index + self.window_len]
-        motion = (motion - self.mean) / self.std
+        motion[:, :, -3:] = (motion[:, :, -3:] - self.mean[:, :, -3:]) / self.std[:, :, -3:]
         return torch.tensor(motion, dtype=torch.float)
 
 
