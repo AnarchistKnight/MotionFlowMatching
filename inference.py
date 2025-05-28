@@ -1,22 +1,6 @@
 import torch
 import torch.nn as nn
 
-
-def flow_one_step(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_end: torch.Tensor) -> torch.Tensor:
-    t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
-    return x_t + (t_end - t_start) * net(t=t_start + (t_end - t_start) / 2,
-                                         x_t=x_t + net(x_t=x_t, t=t_start) * (t_end - t_start) / 2)
-
-
-@torch.inference_mode()
-def flow(model, device, num_frame, num_joint, joint_dim, n_steps=8):
-    time_steps = torch.linspace(0, 1.0, n_steps + 1)
-    x = torch.randn([1, num_frame, num_joint, joint_dim]).to(device)
-    for i in range(n_steps):
-        x = flow_one_step(net=model, x_t=x, t_start=time_steps[i].to(device), t_end=time_steps[i + 1].to(device))
-    return x
-
-
 JOINT_NAMES = {
     "100STYLE": [
         'Hips', 'Chest', 'Chest2', 'Chest3', 'Chest4', 'Neck', 'Head', 'RightCollar', 'RightShoulder',
@@ -49,7 +33,26 @@ JOINT_PARENT_MAP = {
 }
 
 
-def generate(num_samples):
+def flow_one_step(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_end: torch.Tensor) -> torch.Tensor:
+    t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
+    return x_t + (t_end - t_start) * net(t=t_start + (t_end - t_start) / 2,
+                                         x_t=x_t + net(x_t=x_t, t=t_start) * (t_end - t_start) / 2)
+
+
+@torch.inference_mode()
+def flow(model, device, num_frame, num_joint, joint_dim, n_steps=8):
+    time_steps = torch.linspace(0, 1.0, n_steps + 1)
+    x = torch.randn([1, num_frame, num_joint, joint_dim]).to(device)
+    for i in range(n_steps):
+        x = flow_one_step(net=model, x_t=x, t_start=time_steps[i].to(device), t_end=time_steps[i + 1].to(device))
+    return x
+
+
+def visualize():
+    return
+
+
+def generate(num_samples, play=False):
     from utils import read_json, read_pickle
     from transformer import FlowMatchingTransformer
     from visualize_motion import visualize_motion
@@ -78,10 +81,10 @@ def generate(num_samples):
         motion_dict = {}
         for joint_index, joint_name in enumerate(JOINT_NAMES[dataset]):
             motion_dict[joint_name] = motion[:, joint_index, -3:]
-        save_path = os.path.join(video_dir, f"{sample_index}.gif")
+        save_path = None if play else os.path.join(video_dir, f"{sample_index}.gif")
         visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], motion_dict,
                          0, num_frame - 1, 30, save_path)
 
 
 if __name__ == "__main__":
-    main()
+    generate(10)

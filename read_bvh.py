@@ -90,11 +90,10 @@ class BvhMocap:
         return result
 
     def visualize(self, start_frame_idx=None, end_frame_idx=None):
-        # TODO
         if start_frame_idx is None:
             start_frame_idx = 0
         if end_frame_idx is None:
             end_frame_idx = self.num_frames
-        _, world_positions = self.export_data()
+        _, _, world_positions = self.export_data()
         visualize_motion(self.joint_names, self.joint_parent_map, world_positions, start_frame_idx,
                          end_frame_idx, self.frame_rate)
