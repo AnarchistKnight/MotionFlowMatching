@@ -36,7 +36,7 @@ if __name__ == "__main__":
     from utils import read_json
     config_path = "config.json"
     config = read_json(config_path)
-    preprocess_data(dataset_folder=config["dataset"],
+    preprocess_data(dataset_folder=os.path.join("datasets", config["dataset"]),
                     data_cache_path=config["data_cache_path"],
                     num_joints=config["model"]["num_joints"],
                     joint_dim=config["model"]["joint_dim"],

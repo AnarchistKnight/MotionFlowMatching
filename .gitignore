@@ -2,5 +2,7 @@
 .venv
 *.pkl
 *.npz
+*.pth
 datasets
 __pycache__/
+videos/

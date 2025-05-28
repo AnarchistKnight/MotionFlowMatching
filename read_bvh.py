@@ -22,7 +22,7 @@ def calculate_world_transform(joint_parent_map, joint_offsets, local_rotation_di
     if joint_name in world_rotation_dict and joint_name in world_position_dict:
         return
 
-    joint_local_rotation = R.from_euler(EULER_ORDER, local_rotation_dict[joint_name], degrees=True).as_matrix()
+    joint_local_rotation = local_rotation_dict[joint_name]
 
     if joint_name not in joint_parent_map:
         assert joint_name == HIP_NAME
@@ -70,8 +70,13 @@ class BvhMocap:
         world_rotations = {}
         world_positions = {}
         local_positions = {}
+        local_rotations = {}
         for joint_name in self.joint_names:
-            calculate_world_transform(self.joint_parent_map, self.joint_offsets, self.joint_rotations, self.hip_position,
+            local_rotation = self.joint_rotations[joint_name]
+            local_rotation = R.from_euler(EULER_ORDER, local_rotation, degrees=True).as_matrix()
+            local_rotations[joint_name] = local_rotation
+        for joint_name in self.joint_names:
+            calculate_world_transform(self.joint_parent_map, self.joint_offsets, local_rotations, self.hip_position,
                                       local_positions, world_rotations, world_positions, joint_name)
         return local_positions, world_rotations, world_positions
 
@@ -97,3 +102,11 @@ class BvhMocap:
         _, _, world_positions = self.export_data()
         visualize_motion(self.joint_names, self.joint_parent_map, world_positions, start_frame_idx,
                          end_frame_idx, self.frame_rate)
+
+
+if __name__ == "__main__":
+    bvh_file = "datasets/lafan1/dance1_subject2.bvh"
+    bvh_obj = BvhMocap(bvh_file)
+    offsets = bvh_obj.joint_offsets
+    offsets = {key: value.tolist() for key, value in offsets.items()}
+    print(offsets)

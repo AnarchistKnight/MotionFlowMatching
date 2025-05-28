@@ -1,5 +1,5 @@
 {
-  "dataset": "datasets/lafan1",
+  "dataset": "lafan1",
   "data_cache_path": "data.pkl",
   "window_len": 64,
   "window_step": 1,
@@ -9,7 +9,7 @@
   },
   "train": {
     "batch_size": 512,
-    "learning_rate": 0.00001,
+    "learning_rate": 0.000015,
     "epochs": 1000,
     "checkpoint": "checkpoint.pth",
     "smooth_weight": 0.001

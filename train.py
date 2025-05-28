@@ -7,7 +7,7 @@ import os
 from tqdm import trange
 from utils import save_pickle, read_pickle
 import numpy as np
-from tqdm.contrib import tenumerate
+from tqdm import tqdm
 
 
 class MotionDataset(Dataset):
@@ -94,7 +94,7 @@ def train(config):
         total_loss = []
         total_motion_loss = []
         total_smooth_loss = []
-        for batch_idx, motion in tenumerate(dataloader):
+        for motion in tqdm(dataloader):
             motion = motion.to(device)
             noise = torch.randn_like(motion).to(device)
             t = torch.rand(motion.shape[0], dtype=torch.float).to(device)
@@ -114,7 +114,7 @@ def train(config):
 
         torch.save(model.state_dict(), checkpoint_path)
         aver_loss = sum(total_loss) / num_batch
-        aver_motion_loss = sum(total_smooth_loss) / num_batch
+        aver_motion_loss = sum(total_motion_loss) / num_batch
         aver_smooth_loss = sum(total_smooth_loss) / num_batch
         print(f"Epoch: {epoch}, Loss: {aver_loss:.6f}, Motion Loss: {aver_motion_loss:.6f}, Smooth Loss: {aver_smooth_loss:.6f}")
 
