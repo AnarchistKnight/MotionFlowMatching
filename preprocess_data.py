@@ -1,11 +1,7 @@
 import os
-from tqdm import tqdm
 from read_bvh import BvhMocap
 from utils import read_pickle, save_pickle
-
-BVH_FOLDER = "datasets"
-DATASET_NAME = "lafan1"
-SAVE_EVERY = 10
+from tqdm.contrib import tenumerate
 
 
 def traverse_path(path, filetype, files):
@@ -18,30 +14,30 @@ def traverse_path(path, filetype, files):
             files.append(os.path.join(dirpath, filename))
 
 
-def main():
-    dataset_folder = os.path.join(BVH_FOLDER, DATASET_NAME)
+def preprocess_data(dataset_folder, data_cache_path, num_joints, joint_dim, save_every=10):
     bvh_files = []
     traverse_path(dataset_folder, ".bvh", bvh_files)
     bvh_files = sorted(list(set(bvh_files)))
-    data_path = "data.pkl"
     data = {}
-    if os.path.exists(data_path):
-        data = read_pickle(data_path)
-        data = {key: data[key].reshape(-1, 22, 9) for key in data.keys()}
-        print([data[key].shape for key in data.keys()])
-        print(len(data), "files already processed and cached")
-    index = 0
-    for bvh_file_path in tqdm(bvh_files):
-        if bvh_file_path in data.keys():
-            continue
-        mocap_object = BvhMocap(bvh_file_path)
+    if os.path.exists(data_cache_path):
+        data = read_pickle(data_cache_path)
+        data = {key: data[key] for key in data.keys()}
+    bvh_files = [file for file in bvh_files if file not in data]
+    for index, bvh_file in tenumerate(bvh_files):
+        mocap_object = BvhMocap(bvh_file)
         motion_array = mocap_object.export_array()
-        data[bvh_file_path] = motion_array
-        index += 1
-        if index % SAVE_EVERY == 0:
-            save_pickle(data_path, data)
-    save_pickle(data_path, data)
+        data[bvh_file] = motion_array.reshape(-1, num_joints, joint_dim)
+        if index % save_every == 0:
+            save_pickle(data_cache_path, data)
+    save_pickle(data_cache_path, data)
 
 
 if __name__ == "__main__":
-    main()
+    from utils import read_json
+    config_path = "config.json"
+    config = read_json(config_path)
+    preprocess_data(dataset_folder=config["dataset"],
+                    data_cache_path=config["data_cache_path"],
+                    num_joints=config["model"]["num_joints"],
+                    joint_dim=config["model"]["joint_dim"],
+                    save_every=10)

@@ -59,28 +59,31 @@ class MotionDataset(Dataset):
         return torch.tensor(motion, dtype=torch.float)
 
 
-def train(config_path):
-    config = read_json(config_path)
+def train(config):
     window_len = config["window_len"]
     window_step = config["window_step"]
     dataset = MotionDataset(config["data"], window_len, window_step)
     batch_size = config["train"]["batch_size"]
     num_epochs = config["train"]["epochs"]
     checkpoint_path = config["train"]["checkpoint"]
+    smooth_weight = config["train"]["smooth_weight"]
     device = torch.device("cuda")
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
-    model = FlowMatchingTransformer.from_config(config["model"]).to(device)
+    model = FlowMatchingTransformer.from_config(num_frames=window_len,
+                                                config=config["model"]).to(device)
 
     if os.path.exists(checkpoint_path):
         model_state_dict = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(model_state_dict)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config["train"]["learning_rate"])
-    criterion = nn.MSELoss()  # 使用MSELoss来计算速度场误差
 
+    num_batch = len(dataloader)
     for epoch in range(num_epochs):
         model.train()  # 设置模型为训练模式
         total_loss = []
+        total_motion_loss = []
+        total_smooth_loss = []
         for batch_idx, motion in tenumerate(dataloader):
             motion = motion.to(device)
             noise = torch.randn_like(motion).to(device)
@@ -90,15 +93,22 @@ def train(config_path):
             dx = motion - noise
             x_out = model(x_t, t)
             optimizer.zero_grad()
-            loss = criterion(x_out, dx)
+            motion_loss = nn.MSELoss()(x_out, dx)
+            smooth_loss = nn.MSELoss()(x_out[:, 1:, :, :], x_out[:, :-1, :, :])
+            loss = motion_loss + smooth_weight * smooth_loss
             loss.backward()
             optimizer.step()
             total_loss.append(loss.item())
+            total_motion_loss.append(motion.item())
+            total_smooth_loss.append(smooth_loss.item())
 
         torch.save(model.state_dict(), checkpoint_path)
-        average_loss = sum(total_loss) / len(total_loss)
-        print(f"epoch: {epoch}, loss: {average_loss}")
+        average_loss = sum(total_loss) / num_batch
+        average_motion_loss = sum(total_smooth_loss) / num_batch
+        average_smooth_loss = sum(total_smooth_loss) / num_batch
+        print(f"Epoch: {epoch}, Loss: {average_loss:.6f}, Motion Loss: {average_motion_loss:.6f}, Smooth Loss: {average_smooth_loss:.6f}")
 
 
 if __name__ == "__main__":
-    train("config.json")
+    config_path = "config.json"
+    train(read_json(config_path))

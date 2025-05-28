@@ -54,8 +54,8 @@ class TimeEmbedding(nn.Module):
 # --- Main Flow Matching Transformer Model ---
 class FlowMatchingTransformer(nn.Module):
     @classmethod
-    def from_config(cls, config):
-        return FlowMatchingTransformer(num_frames=config["num_frames"],
+    def from_config(cls, num_frames, config):
+        return FlowMatchingTransformer(num_frames=num_frames,
                                        num_joints=config["num_joints"],
                                        joint_dim=config["joint_dim"],
                                        d_model=config["d_model"],

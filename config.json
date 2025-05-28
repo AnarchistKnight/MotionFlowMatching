@@ -1,18 +1,18 @@
 {
-  "dataset": "100STYLE",
-  "data": "data.pkl",
+  "dataset": "datasets/lafan1",
+  "data_cache_path": "data.pkl",
   "window_len": 64,
-  "window_step": 4,
+  "window_step": 1,
   "train": {
     "batch_size": 64,
-    "learning_rate": 0.00001,
+    "learning_rate": 0.000001,
     "epochs": 1000,
-    "checkpoint": "checkpoint.pth"
+    "checkpoint": "checkpoint.pth",
+    "smooth_weight": 0.001
   },
   "model": {
-    "num_frames": 64,
     "num_joints": 22,
-    "joint_dim": 9,
+    "joint_dim": 18,
     "d_model": 512,
     "num_head": 8,
     "num_encoder_layers": 6,

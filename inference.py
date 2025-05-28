@@ -23,6 +23,11 @@ JOINT_NAMES = {
         'RightElbow', 'RightWrist', 'LeftCollar', 'LeftShoulder', 'LeftElbow', 'LeftWrist', 'RightHip',
         'RightKnee', 'RightAnkle', 'RightToe', 'LeftHip', 'LeftKnee', 'LeftAnkle', 'LeftToe'
     ],
+    "lafan1": [
+        'Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToe', 'RightUpLeg', 'RightLeg', 'RightFoot',
+        'RightToe', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftShoulder', 'LeftArm', 'LeftForeArm',
+        'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm', 'RightHand'
+    ]
 }
 
 JOINT_PARENT_MAP = {
@@ -33,6 +38,13 @@ JOINT_PARENT_MAP = {
         'LeftWrist': 'LeftElbow', 'RightHip': 'Hips', 'RightKnee': 'RightHip', 'RightAnkle': 'RightKnee',
         'RightToe': 'RightAnkle', 'LeftHip': 'Hips', 'LeftKnee': 'LeftHip', 'LeftAnkle': 'LeftKnee',
         'LeftToe': 'LeftAnkle'
+    },
+    "lafan1": {
+        'LeftUpLeg': 'Hips', 'LeftLeg': 'LeftUpLeg', 'LeftFoot': 'LeftLeg', 'LeftToe': 'LeftFoot', 'RightUpLeg': 'Hips',
+        'RightLeg': 'RightUpLeg', 'RightFoot': 'RightLeg', 'RightToe': 'RightFoot', 'Spine': 'Hips', 'Spine1': 'Spine',
+        'Spine2': 'Spine1', 'Neck': 'Spine2', 'Head': 'Neck', 'LeftShoulder': 'Spine2', 'LeftArm': 'LeftShoulder',
+        'LeftForeArm': 'LeftArm', 'LeftHand': 'LeftForeArm', 'RightShoulder': 'Spine2', 'RightArm': 'RightShoulder',
+        'RightForeArm': 'RightArm', 'RightHand': 'RightForeArm'
     }
 }
 
@@ -42,6 +54,7 @@ def main():
     from transformer import FlowMatchingTransformer
     from visualize_motion import visualize_motion
     import os
+    from read_bvh import BvhMocap
     device = torch.device("cuda")
     config_path = "config.json"
     config = read_json(config_path)
@@ -54,7 +67,7 @@ def main():
     assert os.path.exists(checkpoint_path)
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
-    motion = generate(model, device, num_frame, num_joint, joint_dim, 20)
+    motion = generate(model, device, num_frame, num_joint, joint_dim, 100)
     motion = motion.squeeze(0).detach().cpu().numpy()
     stat = read_pickle("stat.pkl")
     mean = stat["mean"]
@@ -63,7 +76,8 @@ def main():
     motion_dict = {}
     for joint_index, joint_name in enumerate(JOINT_NAMES[dataset]):
         motion_dict[joint_name] = motion[:, joint_index, -3:]
-    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], motion_dict, 0, num_frame - 1, 30)
+    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], motion_dict,
+                     0, num_frame - 1, 30)
 
 
 if __name__ == "__main__":
