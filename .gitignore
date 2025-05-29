@@ -1,8 +1,7 @@
 .idea
 .venv
-*.pkl
+data.pkl
 *.npz
-*.pth
 datasets
 __pycache__/
 videos/

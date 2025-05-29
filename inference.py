@@ -140,11 +140,11 @@ def generate(num_samples, play=False):
         stat = read_pickle("stat.pkl")
         mean = stat["mean"]
         std = stat["std"]
-        motion[:, :, -3:] = mean[:, :, -3:] + motion[:, :, -3:] * std[:, :, -3:]
-        save_path = None if play else os.path.join(video_dir, f"{sample_index}.gif")
+        motion[:, :, -3:] = mean + motion[:, :, -3:] * std
+        save_path = None if play else os.path.join(video_dir, f"{sample_index}.mp4")
         visualize_root_pos_joint_rot(motion, dataset, save_path)
         # visualize_world_pos(motion, dataset, save_path)
 
 
 if __name__ == "__main__":
-    generate(10, play=True)
+    generate(10, play=False)

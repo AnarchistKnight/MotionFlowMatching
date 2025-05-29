@@ -4,10 +4,9 @@ from utils import read_json, read_pickle
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import os
-from tqdm import trange
 from utils import save_pickle, read_pickle
 import numpy as np
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 
 class MotionDataset(Dataset):
@@ -30,6 +29,7 @@ class MotionDataset(Dataset):
                 self.file_indices.append(file_index)
                 self.frame_indices.append(frame_index)
         self.compute_stat()
+        self.init_motions()
 
     def __len__(self):
         return self.length
@@ -40,27 +40,42 @@ class MotionDataset(Dataset):
             self.mean = stat["mean"]
             self.std = stat["std"]
             return
-        m1 = np.zeros([self.window_len, self.num_joints, self.joint_dim])
-        m2 = np.zeros([self.window_len, self.num_joints, self.joint_dim])
+        m1 = np.zeros([self.window_len, self.num_joints, 3])
+        m2 = np.zeros([self.window_len, self.num_joints, 3])
         for index in trange(self.length):
             file_index = self.file_indices[index]
             frame_index = self.frame_indices[index]
             file = self.files[file_index]
             motion = self.data[file][frame_index: frame_index + self.window_len]
-            m1 += motion
-            m2 += motion ** 2
+            relocated_motion = self.relocate_motion(motion[:, :, -3:])
+            m1 += relocated_motion
+            m2 += relocated_motion ** 2
         self.mean = m1 / self.length
         self.std = np.sqrt(np.maximum(m2 / self.length - self.mean ** 2, 0))
         self.std[self.std < 1e-5] = 1
         save_pickle("stat.pkl", {"mean": self.mean, "std": self.std})
 
+    @staticmethod
+    def relocate_motion(motion):
+        relocated_motion = motion.copy()
+        relocated_motion[:, :, -3] -= motion[0, 0, -3]
+        relocated_motion[:, :, -1] -= motion[0, 0, -1]
+        return relocated_motion
+
+    def init_motions(self):
+        self.relocated_motions = []
+        for idx in trange(self.length):
+            file_index = self.file_indices[idx]
+            frame_index = self.frame_indices[idx]
+            file = self.files[file_index]
+            motion = self.data[file][frame_index: frame_index + self.window_len]
+            relocated_motion = self.relocate_motion(motion)
+            relocated_motion[:, :, -3:] = (relocated_motion[:, :, -3:] - self.mean) / self.std
+            self.relocated_motions.append(relocated_motion)
+
     def __getitem__(self, idx):
-        file_index = self.file_indices[idx]
-        frame_index = self.frame_indices[idx]
-        file = self.files[file_index]
-        motion = self.data[file][frame_index: frame_index + self.window_len]
-        motion[:, :, -3:] = (motion[:, :, -3:] - self.mean[:, :, -3:]) / self.std[:, :, -3:]
-        return torch.tensor(motion, dtype=torch.float)
+        relocated_motion = self.relocated_motions[idx]
+        return torch.tensor(relocated_motion, dtype=torch.float)
 
 
 def train(config):
@@ -104,13 +119,14 @@ def train(config):
             x_out = model(x_t, t)
             optimizer.zero_grad()
             motion_loss = nn.MSELoss()(x_out, dx)
-            smooth_loss = nn.MSELoss()(x_out[:, 1:, :, :], x_out[:, :-1, :, :])
-            loss = motion_loss + smooth_weight * smooth_loss
+            # smooth_loss = nn.MSELoss()(x_out[:, 1:, :, :], x_out[:, :-1, :, :])
+            # loss = motion_loss + smooth_weight * smooth_loss
+            loss = motion_loss
             loss.backward()
             optimizer.step()
             total_loss.append(loss.item())
             total_motion_loss.append(motion_loss.item())
-            total_smooth_loss.append(smooth_loss.item())
+            # total_smooth_loss.append(smooth_loss.item())
 
         torch.save(model.state_dict(), checkpoint_path)
         aver_loss = sum(total_loss) / num_batch
