@@ -54,6 +54,7 @@ JOINT_OFFSETS = {
 }
 
 
+@torch.inference_mode()
 def flow_one_step(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_end: torch.Tensor) -> torch.Tensor:
     t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
     return x_t + (t_end - t_start) * net(t=t_start + (t_end - t_start) / 2,
@@ -61,9 +62,9 @@ def flow_one_step(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_en
 
 
 @torch.inference_mode()
-def flow(model, device, num_frame, num_joint, joint_dim, n_steps=8):
+def flow(model, device, num_frame, feature_dim, n_steps=8):
     time_steps = torch.linspace(0, 1.0, n_steps + 1)
-    x = torch.randn([1, num_frame, num_joint, joint_dim]).to(device)
+    x = torch.randn([1, num_frame, feature_dim]).to(device)
     for i in range(n_steps):
         x = flow_one_step(net=model, x_t=x, t_start=time_steps[i].to(device), t_end=time_steps[i + 1].to(device))
     return x
@@ -94,21 +95,19 @@ def rotation6d_to_matrix(rotation6d):
 
 
 def visualize_root_pos_joint_rot(motion, dataset, save_path):
-    hip_world_position = motion[:, 0, -3:]
-    local_rotation_dict = {}
+    hip_world_position = motion[:, :3]
+    local_rotation_matrix_dict = {}
+    joint_rotations = motion[:, 3:].reshape(-1, 22, 6)
     for joint_index, joint_name in enumerate(JOINT_NAMES[dataset]):
-        joint_rotation_6d = motion[:, joint_index, :6]
-        local_rotation_dict[joint_name] = rotation6d_to_matrix(joint_rotation_6d)
-    local_position_dict = {}
-    world_rotation_dict = {}
-    world_position_dict = {}
+        joint_rotation_6d = joint_rotations[:, joint_index, :]
+        local_rotation_matrix_dict[joint_name] = rotation6d_to_matrix(joint_rotation_6d)
+    world_rotation_dict, world_position_dict = {}, {}
     for joint_name in JOINT_NAMES[dataset]:
         calculate_world_transform(joint_parent_map=JOINT_PARENT_MAP[dataset],
                                   joint_offsets=JOINT_OFFSETS[dataset],
-                                  local_rotation_dict=local_rotation_dict,
+                                  local_rotation_matrix_dict=local_rotation_matrix_dict,
                                   hip_world_position=hip_world_position,
-                                  local_position_dict=local_position_dict,
-                                  world_rotation_dict=world_rotation_dict,
+                                  world_rotation_matrix_dict=world_rotation_dict,
                                   world_position_dict=world_position_dict,
                                   joint_name=joint_name)
     num_frame = motion.shape[0]
@@ -124,8 +123,7 @@ def generate(num_samples, play=False):
     config_path = "config.json"
     config = read_json(config_path)
     num_frame = config["window_len"]
-    num_joint = config["model"]["num_joints"]
-    joint_dim = config["model"]["joint_dim"]
+    feature_dim = config["model"]["feature_dim"]
     dataset = config["dataset"]
     model = FlowMatchingTransformer.from_config(num_frame, config["model"]).to(device)
     checkpoint_path = config["train"]["checkpoint"]
@@ -135,12 +133,12 @@ def generate(num_samples, play=False):
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
     for sample_index in trange(num_samples):
-        motion = flow(model, device, num_frame, num_joint, joint_dim, n_steps=config["inference"]["num_flow_step"])
+        motion = flow(model, device, num_frame, feature_dim, n_steps=config["inference"]["num_flow_step"])
         motion = motion.squeeze(0).detach().cpu().numpy()
         stat = read_pickle("stat.pkl")
         mean = stat["mean"]
         std = stat["std"]
-        motion[:, :, -3:] = mean + motion[:, :, -3:] * std
+        motion[:, :3] = mean + motion[:, :3] * std
         save_path = None if play else os.path.join(video_dir, f"{sample_index}.mp4")
         visualize_root_pos_joint_rot(motion, dataset, save_path)
         # visualize_world_pos(motion, dataset, save_path)

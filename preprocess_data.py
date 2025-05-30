@@ -14,7 +14,7 @@ def traverse_path(path, filetype, files):
             files.append(os.path.join(dirpath, filename))
 
 
-def preprocess_data(dataset_folder, data_cache_path, num_joints, joint_dim, save_every=10):
+def preprocess_data(dataset_folder, data_cache_path, save_every=10):
     bvh_files = []
     traverse_path(dataset_folder, ".bvh", bvh_files)
     bvh_files = sorted(list(set(bvh_files)))
@@ -25,8 +25,7 @@ def preprocess_data(dataset_folder, data_cache_path, num_joints, joint_dim, save
     bvh_files = [file for file in bvh_files if file not in data]
     for index, bvh_file in tenumerate(bvh_files):
         mocap_object = BvhMocap(bvh_file)
-        motion_array = mocap_object.export_array()
-        data[bvh_file] = motion_array.reshape(-1, num_joints, joint_dim)
+        data[bvh_file] = mocap_object.export_array()
         if index % save_every == 0:
             save_pickle(data_cache_path, data)
     save_pickle(data_cache_path, data)
@@ -38,6 +37,4 @@ if __name__ == "__main__":
     config = read_json(config_path)
     preprocess_data(dataset_folder=os.path.join("datasets", config["dataset"]),
                     data_cache_path=config["data_cache_path"],
-                    num_joints=config["model"]["num_joints"],
-                    joint_dim=config["model"]["joint_dim"],
                     save_every=10)

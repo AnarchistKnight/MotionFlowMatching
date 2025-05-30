@@ -19,28 +19,26 @@ def euler_to_rot6d(euler_angles, is_degrees=True):
     return rotation_6d
 
 
-def calculate_world_transform(joint_parent_map, joint_offsets, local_rotation_dict, hip_world_position,
-                              local_position_dict, world_rotation_dict, world_position_dict, joint_name):
-    if joint_name in world_rotation_dict and joint_name in world_position_dict:
+def calculate_world_transform(joint_parent_map, joint_offsets, local_rotation_matrix_dict, hip_world_position,
+                              world_rotation_matrix_dict, world_position_dict, joint_name):
+    if joint_name in world_rotation_matrix_dict and joint_name in world_position_dict:
         return
 
-    joint_local_rotation = local_rotation_dict[joint_name]
+    joint_local_rotation = local_rotation_matrix_dict[joint_name]
 
     if joint_name not in joint_parent_map:
         assert joint_name == HIP_NAME
-        local_position_dict[joint_name] = np.zeros_like(hip_world_position)
-        world_rotation_dict[joint_name] = joint_local_rotation
+        world_rotation_matrix_dict[joint_name] = joint_local_rotation
         world_position_dict[joint_name] = hip_world_position
         return
 
     parent_name = joint_parent_map[joint_name]
-    calculate_world_transform(joint_parent_map, joint_offsets, local_rotation_dict, hip_world_position,
-                              local_position_dict, world_rotation_dict, world_position_dict, parent_name)
-    parent_world_rotation = world_rotation_dict[parent_name]
+    calculate_world_transform(joint_parent_map, joint_offsets, local_rotation_matrix_dict, hip_world_position,
+                              world_rotation_matrix_dict, world_position_dict, parent_name)
+    parent_world_rotation = world_rotation_matrix_dict[parent_name]
     parent_world_position = world_position_dict[parent_name]
-    world_rotation_dict[joint_name] = parent_world_rotation @ joint_local_rotation
+    world_rotation_matrix_dict[joint_name] = parent_world_rotation @ joint_local_rotation
     joint_local_position = parent_world_rotation @ joint_offsets[joint_name]
-    local_position_dict[joint_name] = joint_local_position
     world_position_dict[joint_name] = parent_world_position + joint_local_position
 
 
@@ -65,53 +63,49 @@ class BvhMocap:
             joint_rotations = bvh_object.frames_joint_channels(joint_name, ROTATION_CHANNELS)
             self.joint_rotations[joint_name] = np.array(joint_rotations)
 
-    def export_data(self):
-        world_rotation_dict = {}
-        world_position_dict = {}
-        local_position_dict = {}
-        local_rotation_dict = {}
+    def export_local_rotation_matrix_dict(self):
+        local_rotation_matrix_dict = {}
         for joint_name in self.joint_names:
             local_rotation = self.joint_rotations[joint_name]
-            local_rotation = R.from_euler(EULER_ORDER, local_rotation, degrees=True).as_matrix()
-            local_rotation_dict[joint_name] = local_rotation
+            local_rotation_matrix = R.from_euler(EULER_ORDER, local_rotation, degrees=True).as_matrix()
+            local_rotation_matrix_dict[joint_name] = local_rotation_matrix
+        return local_rotation_matrix_dict
+
+    def export_world_transform(self):
+        local_rotation_matrix_dict = self.export_local_rotation_matrix_dict()
+        world_rotation_matrix_dict, world_position_dict = {}, {}
         for joint_name in self.joint_names:
-            calculate_world_transform(self.joint_parent_map, self.joint_offsets, local_rotation_dict, self.hip_position,
-                                      local_position_dict, world_rotation_dict, world_position_dict, joint_name)
-        return local_position_dict, world_rotation_dict, world_position_dict
+            calculate_world_transform(self.joint_parent_map, self.joint_offsets,
+                                      local_rotation_matrix_dict, self.hip_position,
+                                      world_rotation_matrix_dict, world_position_dict,
+                                      joint_name)
+        return world_rotation_matrix_dict, world_position_dict
 
     def export_array(self):
-        local_positions, world_rotations, world_positions = self.export_data()
-        result = []
+        local_rotation_matrix_dict = self.export_local_rotation_matrix_dict()
+        motion_array = [self.hip_position]
         for joint_name in self.joint_names:
-            local_rot = self.joint_rotations[joint_name]
-            local_rot = R.from_euler(EULER_ORDER, local_rot, degrees=True).as_matrix()
-            local_rot = local_rot[:, :, :2].reshape(-1, 6)
-            # local_pos = local_positions[joint_name]
-            # world_rot = world_rotations[joint_name][:, :, :2].reshape(-1, 6)
-            world_pos = world_positions[joint_name]
-            # result.extend([local_rot, local_pos, world_rot, world_pos])
-            result.extend([local_rot, world_pos])
-        result = np.concatenate(result, axis=1)
-        return result
+            local_rotation_matrix = local_rotation_matrix_dict[joint_name]
+            local_rotation6d = local_rotation_matrix[:, :, :2].reshape(-1, 6)
+            motion_array.append(local_rotation6d)
+        return np.concatenate(motion_array, axis=1)
 
     def visualize(self, start_frame_idx=None, end_frame_idx=None, save_path=None):
         if start_frame_idx is None:
             start_frame_idx = 0
         if end_frame_idx is None:
             end_frame_idx = self.num_frames
-        _, _, world_positions = self.export_data()
+        _, world_positions = self.export_world_transform()
         visualize_motion(self.joint_names, self.joint_parent_map, world_positions, start_frame_idx,
-                         end_frame_idx, self.frame_rate * 6, save_path)
+                         end_frame_idx, self.frame_rate, save_path)
+
+
+def main():
+    bvh_file = "datasets/lafan1/dance2_subject2.bvh"
+    bvh_obj = BvhMocap(bvh_file)
+    data = bvh_obj.export_array()
+    print(data.shape)
 
 
 if __name__ == "__main__":
-    import os
-    from tqdm import tqdm
-    bvh_dir = "datasets/lafan1"
-    for bvh_name in tqdm(os.listdir(bvh_dir)):
-        if not bvh_name.endswith(".bvh"):
-            continue
-        bvh_file = os.path.join(bvh_dir, bvh_name)
-        bvh_obj = BvhMocap(bvh_file)
-        video_save_path = os.path.join("videos", bvh_name.split(".")[0] + ".mp4")
-        bvh_obj.visualize(save_path=video_save_path)
+    main()

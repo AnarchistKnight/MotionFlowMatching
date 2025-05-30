@@ -10,13 +10,11 @@ from tqdm import tqdm, trange
 
 
 class MotionDataset(Dataset):
-    def __init__(self, pickle_path, window_len, num_joints, joint_dim, window_step):
+    def __init__(self, pickle_path, window_len, window_step):
         self.data = read_pickle(pickle_path)
         self.files = list(self.data.keys())
         self.length = 0
         self.window_len = window_len
-        self.num_joints = num_joints
-        self.joint_dim = joint_dim
         self.window_step = window_step
         self.file_indices = []
         self.frame_indices = []
@@ -40,14 +38,14 @@ class MotionDataset(Dataset):
             self.mean = stat["mean"]
             self.std = stat["std"]
             return
-        m1 = np.zeros([self.window_len, self.num_joints, 3])
-        m2 = np.zeros([self.window_len, self.num_joints, 3])
+        m1 = np.zeros([self.window_len, 3])
+        m2 = np.zeros([self.window_len, 3])
         for index in trange(self.length):
             file_index = self.file_indices[index]
             frame_index = self.frame_indices[index]
             file = self.files[file_index]
             motion = self.data[file][frame_index: frame_index + self.window_len]
-            relocated_motion = self.relocate_motion(motion[:, :, -3:])
+            relocated_motion = self.relocate_motion(motion[:, :3])
             m1 += relocated_motion
             m2 += relocated_motion ** 2
         self.mean = m1 / self.length
@@ -58,8 +56,8 @@ class MotionDataset(Dataset):
     @staticmethod
     def relocate_motion(motion):
         relocated_motion = motion.copy()
-        relocated_motion[:, :, -3] -= motion[0, 0, -3]
-        relocated_motion[:, :, -1] -= motion[0, 0, -1]
+        relocated_motion[:, 0] -= motion[0, 0]
+        relocated_motion[:, 2] -= motion[0, 2]
         return relocated_motion
 
     def init_motions(self):
@@ -70,7 +68,7 @@ class MotionDataset(Dataset):
             file = self.files[file_index]
             motion = self.data[file][frame_index: frame_index + self.window_len]
             relocated_motion = self.relocate_motion(motion)
-            relocated_motion[:, :, -3:] = (relocated_motion[:, :, -3:] - self.mean) / self.std
+            relocated_motion[:, :3] = (relocated_motion[:, :3] - self.mean) / self.std
             self.relocated_motions.append(relocated_motion)
 
     def __getitem__(self, idx):
@@ -81,12 +79,8 @@ class MotionDataset(Dataset):
 def train(config):
     window_len = config["window_len"]
     window_step = config["window_step"]
-    num_joints = config["model"]["num_joints"]
-    joint_dim = config["model"]["joint_dim"]
     dataset = MotionDataset(pickle_path=config["data_cache_path"],
                             window_len=window_len,
-                            num_joints=num_joints,
-                            joint_dim=joint_dim,
                             window_step=window_step)
     batch_size = config["train"]["batch_size"]
     num_epochs = config["train"]["epochs"]
@@ -113,20 +107,19 @@ def train(config):
             motion = motion.to(device)
             noise = torch.randn_like(motion).to(device)
             t = torch.rand(motion.shape[0], dtype=torch.float).to(device)
-            t_view = t.view(motion.shape[0], 1, 1, 1)
+            t_view = t.view(motion.shape[0], 1, 1)
             x_t = (1 - t_view) * noise + t_view * motion
             dx = motion - noise
             x_out = model(x_t, t)
             optimizer.zero_grad()
             motion_loss = nn.MSELoss()(x_out, dx)
-            # smooth_loss = nn.MSELoss()(x_out[:, 1:, :, :], x_out[:, :-1, :, :])
-            # loss = motion_loss + smooth_weight * smooth_loss
-            loss = motion_loss
+            smooth_loss = nn.MSELoss()(x_out[:, 1:, :], x_out[:, :-1, :])
+            loss = motion_loss + smooth_weight * smooth_loss
             loss.backward()
             optimizer.step()
             total_loss.append(loss.item())
             total_motion_loss.append(motion_loss.item())
-            # total_smooth_loss.append(smooth_loss.item())
+            total_smooth_loss.append(smooth_loss.item())
 
         torch.save(model.state_dict(), checkpoint_path)
         aver_loss = sum(total_loss) / num_batch

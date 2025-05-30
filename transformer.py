@@ -56,8 +56,7 @@ class FlowMatchingTransformer(nn.Module):
     @classmethod
     def from_config(cls, num_frames, config):
         return FlowMatchingTransformer(num_frames=num_frames,
-                                       num_joints=config["num_joints"],
-                                       joint_dim=config["joint_dim"],
+                                       feature_dim=config["feature_dim"],
                                        d_model=config["d_model"],
                                        num_head=config["num_head"],
                                        num_encoder_layers=config["num_encoder_layers"],
@@ -66,8 +65,7 @@ class FlowMatchingTransformer(nn.Module):
 
     def __init__(self,
                  num_frames: int,
-                 num_joints: int = 23,
-                 joint_dim: int = 9,
+                 feature_dim: int,
                  d_model: int = 512,
                  num_head: int = 8,
                  num_encoder_layers: int = 6,
@@ -76,13 +74,12 @@ class FlowMatchingTransformer(nn.Module):
         super().__init__()
 
         self.num_frames = num_frames
-        self.num_joints = num_joints
-        self.joint_dim = joint_dim
+        self.feature_dim = feature_dim
         self.d_model = d_model
 
         # 1. Input embedding for flattened action data (per frame)
         # Each frame (num_joints * joint_dim) is projected to d_model
-        self.input_projection = nn.Linear(num_joints * joint_dim, d_model)
+        self.input_projection = nn.Linear(feature_dim, d_model)
         self.pos_encoder = PositionalEncoding(d_model, num_frames)
 
         # 2. Time embedding module
@@ -100,7 +97,7 @@ class FlowMatchingTransformer(nn.Module):
 
         # 4. Output head for velocity prediction
         # Projects the Transformer output (d_model) back to flattened velocity (num_joints * joint_dim)
-        self.output_projection = nn.Linear(d_model, num_joints * joint_dim)
+        self.output_projection = nn.Linear(d_model, feature_dim)
 
     def forward(self, x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -108,21 +105,18 @@ class FlowMatchingTransformer(nn.Module):
 
         Args:
             x_t (torch.Tensor): The action sequence at time t (interpolated from x0 and x1).
-                                Shape: (batch_size, num_frames, num_joints, joint_dim)
+                                Shape: (batch_size, num_frames, feature_dim)
             t (torch.Tensor): The scalar time value for each sample in the batch.
                               Shape: (batch_size,) or (batch_size, 1) - float between 0 and 1.
         Returns:
             torch.Tensor: The predicted velocity field for the entire sequence.
-                          Shape: (batch_size, num_frames, num_joints, joint_dim)
+                          Shape: (batch_size, num_frames, feature_dim)
         """
         batch_size = x_t.shape[0]
 
         # 1. Prepare action sequence x_t for Transformer input
-        # Flatten num_joints and joint_dim into a single feature dimension per frame
-        x_t_flat = x_t.view(batch_size, self.num_frames, -1)  # Shape: (batch_size, num_frames, num_joints * joint_dim)
-
         # Project flattened features to Transformer's d_model dimension
-        x_t_embedded = self.input_projection(x_t_flat)  # Shape: (batch_size, num_frames, d_model)
+        x_t_embedded = self.input_projection(x_t)  # Shape: (batch_size, num_frames, d_model)
 
         # Add positional encoding to capture frame order
         x_t_with_pos = self.pos_encoder(x_t_embedded)  # Shape: (batch_size, num_frames, d_model)
@@ -140,10 +134,6 @@ class FlowMatchingTransformer(nn.Module):
 
         # 5. Project Transformer output back to the velocity field dimension
         # The output head predicts the flattened velocity for each frame
-        velocity_flat = self.output_projection(transformer_output)
-        # Shape: (batch_size, num_frames, num_joints * joint_dim)
+        velocity = self.output_projection(transformer_output)
 
-        # Reshape back to the original (num_frames, num_joints, joint_dim) structure
-        velocity_pred = velocity_flat.view(batch_size, self.num_frames, self.num_joints, self.joint_dim)
-
-        return velocity_pred
+        return velocity

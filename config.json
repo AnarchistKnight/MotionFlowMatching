@@ -1,7 +1,7 @@
 {
   "dataset": "lafan1",
   "data_cache_path": "data.pkl",
-  "window_len": 64,
+  "window_len": 128,
   "window_step": 1,
   "inference" : {
     "num_flow_step": 100,
@@ -9,14 +9,13 @@
   },
   "train": {
     "batch_size": 64,
-    "learning_rate": 0.0000001,
+    "learning_rate": 0.000001,
     "epochs": 1000,
     "checkpoint": "checkpoint.pth",
     "smooth_weight": 0.0001
   },
   "model": {
-    "num_joints": 22,
-    "joint_dim": 9,
+    "feature_dim": 135,
     "d_model": 512,
     "num_head": 8,
     "num_encoder_layers": 6,
