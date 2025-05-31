@@ -9,6 +9,13 @@ import numpy as np
 from tqdm import tqdm, trange
 
 
+def relocate_motion(motion):
+    relocated_motion = motion.copy()
+    relocated_motion[:, 0] -= motion[0, 0]
+    relocated_motion[:, 2] -= motion[0, 2]
+    return relocated_motion
+
+
 class MotionDataset(Dataset):
     def __init__(self, pickle_path, window_len, window_step):
         self.data = read_pickle(pickle_path)
@@ -52,19 +59,12 @@ class MotionDataset(Dataset):
         self.std[self.std < 1e-5] = 1
         save_pickle("stat.pkl", {"mean": self.mean, "std": self.std})
 
-    @staticmethod
-    def relocate_motion(motion):
-        relocated_motion = motion.copy()
-        relocated_motion[:, 0] -= motion[0, 0]
-        relocated_motion[:, 2] -= motion[0, 2]
-        return relocated_motion
-
     def __getitem__(self, idx):
         file_index = self.file_indices[idx]
         frame_index = self.frame_indices[idx]
         file = self.files[file_index]
         motion = self.data[file][frame_index: frame_index + self.window_len]
-        relocated_motion = self.relocate_motion(motion)
+        relocated_motion = relocate_motion(motion)
         relocated_motion[:, :3] = (relocated_motion[:, :3] - self.mean) / self.std
         return torch.tensor(relocated_motion, dtype=torch.float)
 

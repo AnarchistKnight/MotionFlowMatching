@@ -7,6 +7,8 @@ from tqdm import trange
 from utils import read_json, read_pickle
 from transformer import FlowMatchingTransformer
 import os
+from read_bvh import BvhMocap
+from train import relocate_motion
 
 JOINT_NAMES = {
     "100STYLE": [
@@ -65,21 +67,15 @@ def flow_one_step(net: nn.Module, x_t: torch.Tensor, t_start: torch.Tensor, t_en
 
 
 @torch.inference_mode()
-def flow(model, device, num_frame, feature_dim, n_steps=8):
-    time_steps = torch.linspace(0, 1.0, n_steps + 1)
-    x = torch.randn([1, num_frame, feature_dim]).to(device)
-    for i in range(n_steps):
-        x = flow_one_step(net=model, x_t=x, t_start=time_steps[i].to(device), t_end=time_steps[i + 1].to(device))
+def in_paint_rot(model, motion, head_frames, tail_frames, device, n_steps):
+    time_steps = torch.linspace(0, 1.0, n_steps + 1).to(device)
+    x = motion.clone()
+    noise = torch.randn_like(x[:, head_frames: -tail_frames, 3:]).to(device)
+    x[:, head_frames: -tail_frames, 3:] = noise
+    for i in trange(n_steps):
+        y = flow_one_step(net=model, x_t=x, t_start=time_steps[i], t_end=time_steps[i + 1])
+        x[:, head_frames: -tail_frames, 3:] = y[:, head_frames: -tail_frames, 3:]
     return x
-
-
-def visualize_world_pos(motion, dataset, save_path):
-    world_position_dict = {}
-    for joint_index, joint_name in enumerate(JOINT_NAMES[dataset]):
-        world_position_dict[joint_name] = motion[:, joint_index, -3:]
-    num_frame = motion.shape[0]
-    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], world_position_dict,
-                     0, num_frame - 1, 30, save_path)
 
 
 def rotation6d_to_matrix(rotation6d):
@@ -97,7 +93,7 @@ def rotation6d_to_matrix(rotation6d):
     return rotation_matrix
 
 
-def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path):
+def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path=None):
     hip_world_position = motion[:, :3]
     local_rotation_matrix_dict = {}
     joint_rotations = motion[:, 3:].reshape(-1, 22, 6)
@@ -118,31 +114,40 @@ def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path):
                      0, num_frame - 1, frame_rate, save_path)
 
 
-def generate(num_samples, play=False):
+def generate(bvh_file, start_frame, num_samples):
     device = torch.device("cuda")
     config_path = "config.json"
     config = read_json(config_path)
     num_frame = config["window_len"]
-    feature_dim = config["model"]["feature_dim"]
     dataset = config["dataset"]
     model = FlowMatchingTransformer.from_config(num_frame, config["model"]).to(device)
     checkpoint_path = config["train"]["checkpoint"]
     assert os.path.exists(checkpoint_path)
-    video_dir = config["inference"]["animation_save_dir"]
+    video_dir = config["inpainting"]["animation_save_dir"]
+    head_frames = config["inpainting"]["head_frames"]
+    tail_frames = config["inpainting"]["tail_frames"]
+    num_step = config["inference"]["num_flow_step"]
     os.makedirs(video_dir, exist_ok=True)
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
-    for sample_index in trange(num_samples):
-        motion = flow(model, device, num_frame, feature_dim, n_steps=config["inference"]["num_flow_step"])
-        motion = motion.squeeze(0).detach().cpu().numpy()
-        stat = read_pickle("stat.pkl")
-        mean = stat["mean"]
-        std = stat["std"]
-        motion[:, :3] = mean + motion[:, :3] * std
-        save_path = None if play else os.path.join(video_dir, f"{sample_index}.mp4")
-        visualize_root_pos_joint_rot(motion, dataset, frame_rate=30, save_path=save_path)
-        # visualize_world_pos(motion, dataset, save_path)
+    in_motion_raw = BvhMocap(bvh_file).export_array()[start_frame: start_frame + num_frame]
+    in_motion_raw = relocate_motion(in_motion_raw)
+    in_save_path = os.path.join(video_dir, "original.mp4")
+    visualize_root_pos_joint_rot(in_motion_raw, dataset, frame_rate=30, save_path=in_save_path)
+
+    stat = read_pickle("stat.pkl")
+    mean, std = stat["mean"], stat["std"]
+    in_motion = in_motion_raw.copy()
+    in_motion[:, :3] = (in_motion_raw[:, :3] - mean) / std
+    in_motion = torch.tensor(in_motion, dtype=torch.float).to(device).unsqueeze(0)
+    for sample_index in range(num_samples):
+        out_motion = in_paint_rot(model, in_motion, head_frames, tail_frames, device, num_step)
+        out_motion = out_motion.squeeze(0).detach().cpu().numpy()
+        out_motion[:, :3] = mean + out_motion[:, :3] * std
+        out_save_path = os.path.join(video_dir, f"inpainting_{sample_index}.mp4")
+        visualize_root_pos_joint_rot(out_motion, dataset, frame_rate=30, save_path=out_save_path)
 
 
 if __name__ == "__main__":
-    generate(20, play=False)
+    file = "datasets/lafan1/dance2_subject4.bvh"
+    generate(file, start_frame=4000, num_samples=20)

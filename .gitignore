@@ -5,3 +5,5 @@ data.pkl
 datasets
 __pycache__/
 videos/
+docs/
+inpainting/

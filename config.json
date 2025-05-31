@@ -7,6 +7,11 @@
     "num_flow_step": 100,
     "animation_save_dir": "videos"
   },
+  "inpainting": {
+    "head_frames": 30,
+    "tail_frames": 30,
+    "animation_save_dir": "inpainting"
+  },
   "train": {
     "batch_size": 32,
     "learning_rate": 0.00001,
