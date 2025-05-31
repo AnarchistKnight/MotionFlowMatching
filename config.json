@@ -8,8 +8,8 @@
     "animation_save_dir": "videos"
   },
   "inpainting": {
-    "head_frames": 30,
-    "tail_frames": 30,
+    "head_frames": 15,
+    "tail_frames": 15,
     "animation_save_dir": "inpainting"
   },
   "train": {

@@ -94,3 +94,5 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
     else:
         writer_gif = animation.PillowWriter(fps=frame_rate, metadata=dict(artist='Me'))
         anim.save(save_path, writer=writer_gif, dpi=100)  # GIF 通常 dpi 较低，以减小文件大小
+
+    plt.close()

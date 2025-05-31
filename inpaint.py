@@ -1,13 +1,12 @@
+import os
 import torch
+import numpy as np
 import torch.nn as nn
+from tqdm import trange
 from visualize_motion import visualize_motion
 from read_bvh import calculate_world_transform
-import numpy as np
-from tqdm import trange
 from utils import read_json, read_pickle
 from transformer import FlowMatchingTransformer
-import os
-from read_bvh import BvhMocap
 from train import relocate_motion
 
 JOINT_NAMES = {
@@ -130,7 +129,7 @@ def generate(bvh_file, start_frame, num_samples):
     os.makedirs(video_dir, exist_ok=True)
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
-    in_motion_raw = BvhMocap(bvh_file).export_array()[start_frame: start_frame + num_frame]
+    in_motion_raw = read_pickle("data.pkl")[bvh_file][start_frame: start_frame + num_frame]
     in_motion_raw = relocate_motion(in_motion_raw)
     in_save_path = os.path.join(video_dir, "original.mp4")
     visualize_root_pos_joint_rot(in_motion_raw, dataset, frame_rate=30, save_path=in_save_path)
