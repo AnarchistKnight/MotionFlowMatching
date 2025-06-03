@@ -5,37 +5,55 @@ smoothly connect the head and tail frames. See `inpaint.py` for details.
 
 1. create python environment
 
-```python -m venv venv```
+```bash
+python -m venv venv
+```
 
 2. activate python environment
 
-```source venv/Scripts/activate # for windows```
+```bash
+source venv/Scripts/activate # for windows
+```
 
-```source venv/bin/activate # for linux```
+```bash
+source venv/bin/activate # for linux
+```
 
 3. install packages
 
-```bash install.sh```
+```bash
+bash install.sh
+```
 
 4. download lafan1 motion data and place bvh files under `datasets/lafan1`
 
-```https://github.com/ubisoft/ubisoft-laforge-animation-dataset.git```
+```
+https://github.com/ubisoft/ubisoft-laforge-animation-dataset.git
+```
 
 5. preprocess data
 
-```python preprocess.py```
+```bash
+python preprocess.py
+```
 
 6. training
 
-```python train.py```
+```bash
+python train.py
+```
 
 7. generate motions and save them under `videos`
 
-```python inference.py```
+```bash
+python inference.py
+```
 
 8. Motion in between (inpainting), completed motions are saved under `inpainting`
 
-```python inpaint.py```
+```bash
+python inpaint.py
+```
 
 9. motion generation samples
 
