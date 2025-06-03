@@ -39,10 +39,14 @@ smoothly connect the head and tail frames. See `inpaint.py` for details.
 
 9. motion generation samples
 
-<img src="videos/10.gif" alt="" width="40%">
-<img src="videos/11.gif" alt="" width="40%">
+<img src="videos/1.gif" alt="" width="40%">
+<img src="videos/2.gif" alt="" width="40%">
+<img src="videos/3.gif" alt="" width="40%">
+<img src="videos/4.gif" alt="" width="40%">
 
 10. motion inpainting samples
 
-<img src="inpainting/inpainting_10.gif" alt="" width="40%">
-<img src="inpainting/inpainting_16.gif" alt="" width="40%">
+<img src="inpainting/inpainting_1.gif" alt="" width="40%">
+<img src="inpainting/inpainting_2.gif" alt="" width="40%">
+<img src="inpainting/inpainting_3.gif" alt="" width="40%">
+<img src="inpainting/inpainting_4.gif" alt="" width="40%">
