@@ -139,7 +139,7 @@ def generate(num_samples, play=False):
         mean = stat["mean"]
         std = stat["std"]
         motion[:, :3] = mean + motion[:, :3] * std
-        save_path = None if play else os.path.join(video_dir, f"{sample_index}.mp4")
+        save_path = None if play else os.path.join(video_dir, f"{sample_index}.gif")
         visualize_root_pos_joint_rot(motion, dataset, frame_rate=30, save_path=save_path)
         # visualize_world_pos(motion, dataset, save_path)
 

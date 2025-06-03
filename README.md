@@ -37,4 +37,14 @@ smoothly connect the head and tail frames. See `inpaint.py` for details.
 
 ```python inpaint.py```
 
+9. motion generation samples
 
+![](videos/10.gif)
+![](videos/11.gif)
+![](videos/12.gif)
+
+10. motion inpainting samples
+
+![](inpainting/inpainting_10.gif)
+![](inpainting/inpainting_11.gif)
+![](inpainting/inpainting_16.gif)

@@ -14,7 +14,7 @@
   },
   "train": {
     "batch_size": 32,
-    "learning_rate": 0.00001,
+    "learning_rate": 0.000001,
     "epochs": 1000,
     "checkpoint": "checkpoint.pth"
   },

@@ -152,7 +152,7 @@ def generate(bvh_file, start_frame, num_samples):
         out_motion = in_paint_rot(model, in_motion, head_frames, tail_frames, device, num_step)
         out_motion = out_motion.squeeze(0).detach().cpu().numpy()
         out_motion[:, :3] = mean + out_motion[:, :3] * std
-        out_save_path = os.path.join(video_dir, f"inpainting_{sample_index}.mp4")
+        out_save_path = os.path.join(video_dir, f"inpainting_{sample_index}.gif")
         visualize_root_pos_joint_rot(out_motion, dataset, frame_rate=30, save_path=out_save_path)
 
 
