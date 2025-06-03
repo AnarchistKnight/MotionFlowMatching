@@ -8,6 +8,7 @@ from scripts.read_bvh import calculate_world_transform
 from scripts.utils import read_json, read_pickle
 from scripts.transformer import FlowMatchingTransformer
 from train import relocate_motion
+from scripts.interpolate import CubicInterpolation
 
 JOINT_NAMES = {
     "100STYLE": [
@@ -117,9 +118,9 @@ def generate(bvh_file, start_frame, num_samples):
     device = torch.device("cuda")
     config_path = "config.json"
     config = read_json(config_path)
-    num_frame = config["window_len"]
+    num_frames = config["window_len"]
     dataset = config["dataset"]
-    model = FlowMatchingTransformer.from_config(num_frame, config["model"]).to(device)
+    model = FlowMatchingTransformer.from_config(num_frames, config["model"]).to(device)
     checkpoint_path = config["train"]["checkpoint"]
     assert os.path.exists(checkpoint_path)
     video_dir = config["inpainting"]["animation_save_dir"]
@@ -129,16 +130,24 @@ def generate(bvh_file, start_frame, num_samples):
     os.makedirs(video_dir, exist_ok=True)
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
-    in_motion_raw = read_pickle("data.pkl")[bvh_file][start_frame: start_frame + num_frame]
+    in_motion_raw = read_pickle("data.pkl")[bvh_file][start_frame: start_frame + num_frames]
     in_motion_raw = relocate_motion(in_motion_raw)
     in_save_path = os.path.join(video_dir, "original.mp4")
     visualize_root_pos_joint_rot(in_motion_raw, dataset, frame_rate=30, save_path=in_save_path)
 
+    # use cubic interpolation to complete hip position in-between
+    in_motion = in_motion_raw.copy()
+    head_hip_pos = in_motion_raw[:head_frames, :3]
+    tail_hip_pos = in_motion_raw[-tail_frames:, :3]
+    completion_frames = num_frames - head_frames - tail_frames
+    interpolation = CubicInterpolation(head_hip_pos, tail_hip_pos)
+    completed_traj = interpolation.interpolate(completion_frames)
+    in_motion[head_frames:-tail_frames, :3] = completed_traj
     stat = read_pickle("stat.pkl")
     mean, std = stat["mean"], stat["std"]
-    in_motion = in_motion_raw.copy()
-    in_motion[:, :3] = (in_motion_raw[:, :3] - mean) / std
+    in_motion[:, :3] = (in_motion[:, :3] - mean) / std
     in_motion = torch.tensor(in_motion, dtype=torch.float).to(device).unsqueeze(0)
+
     for sample_index in range(num_samples):
         out_motion = in_paint_rot(model, in_motion, head_frames, tail_frames, device, num_step)
         out_motion = out_motion.squeeze(0).detach().cpu().numpy()
