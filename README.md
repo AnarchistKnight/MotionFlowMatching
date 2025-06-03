@@ -40,17 +40,17 @@ smoothly connect the head and tail frames. See `inpaint.py` for details.
 9. motion generation samples
 
 <div style="display: flex; flex-wrap: wrap; justify-content: space-around; align-items: flex-start;">
-  <img src="videos/1.gif" alt="Description for GIF 1" style="width: 48%; margin: 1%;">
-  <img src="videos/2.gif" alt="Description for GIF 2" style="width: 48%; margin: 1%;">
-  <img src="videos/3.gif" alt="Description for GIF 3" style="width: 48%; margin: 1%;">
-  <img src="videos/4.gif" alt="Description for GIF 4" style="width: 48%; margin: 1%;">
+  <img src="videos/1.gif" alt="Description for GIF 1" style="width: 40%; margin: 1%;">
+  <img src="videos/2.gif" alt="Description for GIF 2" style="width: 40%; margin: 1%;">
+  <img src="videos/3.gif" alt="Description for GIF 3" style="width: 40%; margin: 1%;">
+  <img src="videos/4.gif" alt="Description for GIF 4" style="width: 40%; margin: 1%;">
 </div>
 
 10. motion inpainting samples
 
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 800px; margin: auto;">
-  <img src="inpainting/inpainting_1.gif" alt="Inpainting process 1" style="width: 100%; height: auto; display: block;">
-  <img src="inpainting/inpainting_2.gif" alt="Inpainting process 2" style="width: 100%; height: auto; display: block;">
-  <img src="inpainting/inpainting_3.gif" alt="Inpainting process 3" style="width: 100%; height: auto; display: block;">
-  <img src="inpainting/inpainting_4.gif" alt="Inpainting process 4" style="width: 100%; height: auto; display: block;">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-around; align-items: flex-start;">
+  <img src="inpainting/inpainting_1.gif" alt="Inpainting process 1" style="width: 40%; margin: 1%;">
+  <img src="inpainting/inpainting_2.gif" alt="Inpainting process 2" style="width: 40%; margin: 1%;">
+  <img src="inpainting/inpainting_3.gif" alt="Inpainting process 3" style="width: 40%; margin: 1%;">
+  <img src="inpainting/inpainting_4.gif" alt="Inpainting process 4" style="width: 40%; margin: 1%;">
 </div>
