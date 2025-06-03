@@ -3,10 +3,10 @@ import torch
 import numpy as np
 import torch.nn as nn
 from tqdm import trange
-from visualize_motion import visualize_motion
-from read_bvh import calculate_world_transform
-from utils import read_json, read_pickle
-from transformer import FlowMatchingTransformer
+from scripts.visualize_motion import visualize_motion
+from scripts.read_bvh import calculate_world_transform
+from scripts.utils import read_json, read_pickle
+from scripts.transformer import FlowMatchingTransformer
 from train import relocate_motion
 
 JOINT_NAMES = {
@@ -148,5 +148,5 @@ def generate(bvh_file, start_frame, num_samples):
 
 
 if __name__ == "__main__":
-    file = "datasets/lafan1/dance2_subject4.bvh"
-    generate(file, start_frame=4000, num_samples=20)
+    file = "datasets\\lafan1\\dance2_subject4.bvh"
+    generate(file, start_frame=4000, num_samples=40)

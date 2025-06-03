@@ -1,10 +1,7 @@
-import os
-
-import bvh
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from visualize_motion import visualize_motion
-from utils import read_bvh
+from scripts.visualize_motion import visualize_motion
+from scripts.utils import read_bvh
 
 POSITION_CHANNELS = ['Xposition', 'Yposition', 'Zposition']
 ROTATION_CHANNELS = ['Xrotation', 'Yrotation', 'Zrotation']
@@ -101,7 +98,7 @@ class BvhMocap:
 
 
 def main():
-    bvh_file = "datasets/lafan1/dance2_subject2.bvh"
+    bvh_file = "../datasets/lafan1/dance2_subject2.bvh"
     bvh_obj = BvhMocap(bvh_file)
     data = bvh_obj.export_array()
     print(data.shape)

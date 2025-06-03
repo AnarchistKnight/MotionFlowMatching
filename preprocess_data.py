@@ -1,6 +1,6 @@
 import os
-from read_bvh import BvhMocap
-from utils import read_pickle, save_pickle
+from scripts.read_bvh import BvhMocap
+from scripts.utils import read_pickle, save_pickle
 from tqdm.contrib import tenumerate
 
 
@@ -32,7 +32,7 @@ def preprocess_data(dataset_folder, data_cache_path, save_every=10):
 
 
 if __name__ == "__main__":
-    from utils import read_json
+    from scripts.utils import read_json
     config_path = "config.json"
     config = read_json(config_path)
     preprocess_data(dataset_folder=os.path.join("datasets", config["dataset"]),

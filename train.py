@@ -1,10 +1,10 @@
-from transformer import FlowMatchingTransformer
+from scripts.transformer import FlowMatchingTransformer
 import torch
-from utils import read_json, read_pickle
+from scripts.utils import read_json
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import os
-from utils import save_pickle, read_pickle
+from scripts.utils import save_pickle, read_pickle
 import numpy as np
 from tqdm import tqdm, trange
 

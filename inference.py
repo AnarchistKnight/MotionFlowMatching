@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
-from visualize_motion import visualize_motion
-from read_bvh import calculate_world_transform
+from scripts.visualize_motion import visualize_motion
+from scripts.read_bvh import calculate_world_transform
 import numpy as np
 from tqdm import trange
-from utils import read_json, read_pickle
-from transformer import FlowMatchingTransformer
+from scripts.utils import read_json, read_pickle
+from scripts.transformer import FlowMatchingTransformer
 import os
 
 JOINT_NAMES = {
