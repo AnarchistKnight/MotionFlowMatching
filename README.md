@@ -1,7 +1,9 @@
-The repo is an simple demo showing how to use flow matching (you may also use diffusion model) to 
-do MIB (motion in-between) tasks. The task is to use (68=128-30-30) frames to connect the given 30 head 
-frames and 30 tail frames. We expect the completed (68=128-30-30) frames to be sufficiently natural and 
-smoothly connect the head and tail frames. See `inpaint.py` for details.
+The repo is an simple demo showing how to use flow matching (you may also use diffusion model) 
+to do MIB (motion in-between) tasks. The specific task is to use (68=128-30-30) frames to 
+connect the given 30 head frames and 30 tail frames. We expect the frames completed in the 
+middle to be sufficiently natural and smooth connecting the given head and tail. See `inpaint.py` 
+for details. There are many other techniques to improve the generated in-between frames and 
+the motion as a whole, but these are not the purposes of this repo and will not be included here 
 
 1. create python environment
 
