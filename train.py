@@ -51,7 +51,7 @@ class MotionDataset(Dataset):
             frame_index = self.frame_indices[index]
             file = self.files[file_index]
             motion = self.data[file][frame_index: frame_index + self.window_len]
-            relocated_motion = self.relocate_motion(motion[:, :3])
+            relocated_motion = relocate_motion(motion[:, :3])
             m1 += relocated_motion
             m2 += relocated_motion ** 2
         self.mean = m1 / self.length
