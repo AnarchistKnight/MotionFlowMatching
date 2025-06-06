@@ -9,6 +9,7 @@ from scripts.utils import read_json, read_pickle
 from scripts.transformer import FlowMatchingTransformer
 from train import relocate_motion
 from scripts.interpolate import CubicInterpolation
+import random
 
 JOINT_NAMES = {
     "100STYLE": [
@@ -72,7 +73,7 @@ def in_paint_rot(model, motion, head_frames, tail_frames, device, n_steps):
     x = motion.clone()
     noise = torch.randn_like(x[:, head_frames: -tail_frames, 3:]).to(device)
     x[:, head_frames: -tail_frames, 3:] = noise
-    for i in trange(n_steps):
+    for i in range(n_steps):
         y = flow_one_step(net=model, x_t=x, t_start=time_steps[i], t_end=time_steps[i + 1])
         x[:, head_frames: -tail_frames, 3:] = y[:, head_frames: -tail_frames, 3:]
     return x
@@ -93,7 +94,7 @@ def rotation6d_to_matrix(rotation6d):
     return rotation_matrix
 
 
-def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path=None):
+def visualize_root_pos_joint_rot(motion, dataset, head_frames, tail_frames, frame_rate, save_path, show=False):
     hip_world_position = motion[:, :3]
     local_rotation_matrix_dict = {}
     joint_rotations = motion[:, 3:].reshape(-1, 22, 6)
@@ -110,11 +111,11 @@ def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path=None):
                                   world_position_dict=world_position_dict,
                                   joint_name=joint_name)
     num_frame = motion.shape[0]
-    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], world_position_dict,
-                     0, num_frame - 1, frame_rate, save_path)
+    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], world_position_dict,0,
+                     num_frame - 1, head_frames, tail_frames, frame_rate, save_path, show=show)
 
 
-def generate(bvh_file, start_frame, num_samples):
+def generate(bvh_file, num_samples, show=False):
     device = torch.device("cuda")
     config_path = "config.json"
     config = read_json(config_path)
@@ -130,32 +131,38 @@ def generate(bvh_file, start_frame, num_samples):
     os.makedirs(video_dir, exist_ok=True)
     model_state_dict = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(model_state_dict)
-    in_motion_raw = read_pickle("data.pkl")[bvh_file][start_frame: start_frame + num_frames]
-    in_motion_raw = relocate_motion(in_motion_raw)
-    in_save_path = os.path.join(video_dir, "original.mp4")
-    visualize_root_pos_joint_rot(in_motion_raw, dataset, frame_rate=30, save_path=in_save_path)
-
-    # use cubic interpolation to complete hip position in-between
-    in_motion = in_motion_raw.copy()
-    head_hip_pos = in_motion_raw[:head_frames, :3]
-    tail_hip_pos = in_motion_raw[-tail_frames:, :3]
-    completion_frames = num_frames - head_frames - tail_frames
-    interpolation = CubicInterpolation(head_hip_pos, tail_hip_pos)
-    completed_traj = interpolation.interpolate(completion_frames)
-    in_motion[head_frames:-tail_frames, :3] = completed_traj
     stat = read_pickle("stat.pkl")
     mean, std = stat["mean"], stat["std"]
-    in_motion[:, :3] = (in_motion[:, :3] - mean) / std
-    in_motion = torch.tensor(in_motion, dtype=torch.float).to(device).unsqueeze(0)
+    whole_motion = read_pickle("data.pkl")[bvh_file]
 
-    for sample_index in range(num_samples):
+    for sample_index in trange(num_samples):
+        start_frame = random.randint(0, whole_motion.shape[0] - num_frames - 1)
+        in_motion_raw = whole_motion[start_frame: start_frame + num_frames]
+        in_motion_raw = relocate_motion(in_motion_raw)
+        in_save_path = os.path.join(video_dir, "original.mp4")
+        visualize_root_pos_joint_rot(in_motion_raw, dataset, head_frames=0, tail_frames=0,
+                                     frame_rate=30, save_path=in_save_path, show=show)
+
+        # use cubic interpolation to complete hip position in-between
+        in_motion = in_motion_raw.copy()
+        head_hip_pos = in_motion_raw[:head_frames, :3]
+        tail_hip_pos = in_motion_raw[-tail_frames:, :3]
+        completion_frames = num_frames - head_frames - tail_frames
+        interpolation = CubicInterpolation(head_hip_pos, tail_hip_pos)
+        completed_traj = interpolation.interpolate(completion_frames)
+        in_motion[head_frames:-tail_frames, :3] = completed_traj
+
+        in_motion[:, :3] = (in_motion[:, :3] - mean) / std
+        in_motion = torch.tensor(in_motion, dtype=torch.float).to(device).unsqueeze(0)
+
         out_motion = in_paint_rot(model, in_motion, head_frames, tail_frames, device, num_step)
         out_motion = out_motion.squeeze(0).detach().cpu().numpy()
         out_motion[:, :3] = mean + out_motion[:, :3] * std
         out_save_path = os.path.join(video_dir, f"inpainting_{sample_index}.gif")
-        visualize_root_pos_joint_rot(out_motion, dataset, frame_rate=30, save_path=out_save_path)
+        visualize_root_pos_joint_rot(out_motion, dataset, head_frames=head_frames, tail_frames=tail_frames,
+                                     frame_rate=30, save_path=out_save_path, show=show)
 
 
 if __name__ == "__main__":
     file = "datasets\\lafan1\\dance2_subject4.bvh"
-    generate(file, start_frame=4000, num_samples=40)
+    generate(file, num_samples=40, show=False)

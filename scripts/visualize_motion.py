@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 
-def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame_idx,
-                     end_frame_idx, frame_rate, save_path=None):
+def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame_idx, end_frame_idx,
+                     num_head_frames, num_tail_frames, frame_rate, save_path, show):
     min_pos = np.array([np.inf, np.inf, np.inf])
     max_pos = np.array([-np.inf, -np.inf, -np.inf])
 
@@ -52,14 +52,15 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
             line.set_data([parent_pos[0], joint_pos[0]],
                           [parent_pos[2], joint_pos[2]])  # Y和Z轴可能需要交换
             line.set_3d_properties([parent_pos[1], joint_pos[1]])  # Y和Z轴可能需要交换
+            line.set_color("blue")
 
         # 返回所有初始化的 Artist 对象
         return tuple(list(bone_lines.values()))
 
     # --- update_frame 定义 ---
     # 在 blit=True 模式下，update_frame 只需要更新 Artist 对象的数据，并返回它们
-    def update_frame(current_frame_relative_idx):
-        frame_abs_idx = start_frame_idx + current_frame_relative_idx
+    def update_frame(relative_frame_idx):
+        frame_abs_idx = start_frame_idx + relative_frame_idx
 
         # 更新骨骼线数据
         for child_name, parent_name in joint_parent_map.items():  # 遍历 map 中的父子关系
@@ -70,6 +71,11 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
             line.set_data([p_pos[0], c_pos[0]],
                           [p_pos[2], c_pos[2]])  # Y和Z轴可能需要交换
             line.set_3d_properties([p_pos[1], c_pos[1]])  # Y和Z轴可能需要交换
+
+            if num_head_frames <= relative_frame_idx < end_frame_idx + 1 - num_tail_frames:
+                line.set_color("red")
+            else:
+                line.set_color("blue")
 
         # --- 关键：返回所有被修改的 Artist 对象 ---
         # 返回一个元组，包含散点图、所有骨骼线和标题
@@ -84,9 +90,9 @@ def visualize_motion(joint_names, joint_parent_map, world_positions, start_frame
     # 设置 blit=True，并提供 init_func
     anim = animation.FuncAnimation(fig, update_frame, frames=animation_frames, init_func=init_func,
                                    interval=1000 / frame_rate, blit=True, repeat=False)
-    if save_path is None:
+
+    if show:
         plt.show()
-        return
 
     if save_path.endswith(".mp4"):
         writer_mp4 = animation.FFMpegWriter(fps=frame_rate, metadata=dict(artist='Me'), bitrate=1000)

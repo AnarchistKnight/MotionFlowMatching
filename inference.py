@@ -97,7 +97,7 @@ def rotation6d_to_matrix(rotation6d):
     return rotation_matrix
 
 
-def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path):
+def visualize_root_pos_joint_rot(motion, dataset, head_frames, tail_frames, frame_rate, save_path, show):
     hip_world_position = motion[:, :3]
     local_rotation_matrix_dict = {}
     joint_rotations = motion[:, 3:].reshape(-1, 22, 6)
@@ -114,11 +114,11 @@ def visualize_root_pos_joint_rot(motion, dataset, frame_rate, save_path):
                                   world_position_dict=world_position_dict,
                                   joint_name=joint_name)
     num_frame = motion.shape[0]
-    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], world_position_dict,
-                     0, num_frame - 1, frame_rate, save_path)
+    visualize_motion(JOINT_NAMES[dataset], JOINT_PARENT_MAP[dataset], world_position_dict, 0,
+                     num_frame - 1, head_frames, tail_frames, frame_rate, save_path, show)
 
 
-def generate(num_samples, play=False):
+def generate(num_samples, show=False):
     device = torch.device("cuda")
     config_path = "config.json"
     config = read_json(config_path)
@@ -139,10 +139,11 @@ def generate(num_samples, play=False):
         mean = stat["mean"]
         std = stat["std"]
         motion[:, :3] = mean + motion[:, :3] * std
-        save_path = None if play else os.path.join(video_dir, f"{sample_index}.gif")
-        visualize_root_pos_joint_rot(motion, dataset, frame_rate=30, save_path=save_path)
+        save_path = os.path.join(video_dir, f"{sample_index}.gif")
+        visualize_root_pos_joint_rot(motion, dataset, head_frames=0, tail_frames=0, frame_rate=30,
+                                     save_path=save_path, show=show)
         # visualize_world_pos(motion, dataset, save_path)
 
 
 if __name__ == "__main__":
-    generate(20, play=False)
+    generate(20, show=False)
