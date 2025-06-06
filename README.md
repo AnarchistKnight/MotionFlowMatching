@@ -77,7 +77,8 @@ The checkpoint under this repo is trained with `d_model=512` and `dim_feedforwar
 
 10. Inpainted Motion Samples
 Given the first 20 (head) and last 20 (tail) frames, the in-between 88 frames are generated 
-to connect the head and tail.
+to connect the head and tail. The given frames are painted in blue color, and the generated 
+in-between frames are painted in red color.
 
 <div style="display: flex; flex-wrap: wrap; justify-content: space-around; align-items: flex-start;">
   <img src="inpainting/inpainting_1.gif" alt="Inpainting process 1" style="width: 40%; margin: 1%;">
